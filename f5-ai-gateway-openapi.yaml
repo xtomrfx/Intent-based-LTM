@@ -1,0 +1,440 @@
+openapi: 3.0.3
+info:
+  title: F5 AI Gateway Northbound API
+  version: 1.0.0
+  description: |
+    Current northbound OpenAI-compatible contract implemented by the F5 AI Gateway demo.
+
+    Scope of this spec:
+    - chat completions northbound requests
+    - probe and model-discovery endpoints
+    - local respond and routed response behavior
+
+    Current limitation:
+    - routed `/v1/responses` and `/responses` are not fully supported yet
+servers:
+  - url: http://10.1.10.12:8080
+    description: Demo northbound virtual server
+tags:
+  - name: Probe
+  - name: Models
+  - name: Chat
+  - name: Responses
+paths:
+  /:
+    get:
+      tags: [Probe]
+      summary: Gateway probe
+      responses:
+        '200':
+          description: Gateway probe result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProbeResponse'
+    head:
+      tags: [Probe]
+      summary: Gateway probe head
+      responses:
+        '200':
+          description: Probe head success
+    options:
+      tags: [Probe]
+      summary: Gateway probe options
+      responses:
+        '204':
+          description: Probe options success
+  /v1:
+    get:
+      tags: [Probe]
+      summary: Gateway v1 probe
+      responses:
+        '200':
+          description: Gateway v1 probe result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProbeResponse'
+    head:
+      tags: [Probe]
+      summary: Gateway v1 probe head
+      responses:
+        '200':
+          description: Probe head success
+    options:
+      tags: [Probe]
+      summary: Gateway v1 probe options
+      responses:
+        '204':
+          description: Probe options success
+  /v1/models:
+    get:
+      tags: [Models]
+      summary: List public models
+      responses:
+        '200':
+          description: Public model list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelsResponse'
+    head:
+      tags: [Models]
+      summary: Models head
+      responses:
+        '200':
+          description: Models head success
+    options:
+      tags: [Models]
+      summary: Models options
+      responses:
+        '204':
+          description: Models options success
+  /models:
+    get:
+      tags: [Models]
+      summary: List public models alias
+      responses:
+        '200':
+          description: Public model list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelsResponse'
+    head:
+      tags: [Models]
+      summary: Models alias head
+      responses:
+        '200':
+          description: Models head success
+    options:
+      tags: [Models]
+      summary: Models alias options
+      responses:
+        '204':
+          description: Models options success
+  /model/list:
+    get:
+      tags: [Models]
+      summary: List public models alternate alias
+      responses:
+        '200':
+          description: Public model list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelsResponse'
+    head:
+      tags: [Models]
+      summary: Model list head
+      responses:
+        '200':
+          description: Models head success
+    options:
+      tags: [Models]
+      summary: Model list options
+      responses:
+        '204':
+          description: Models options success
+  /v1/chat/completions:
+    post:
+      tags: [Chat]
+      summary: OpenAI-compatible chat completions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatCompletionsRequest'
+      responses:
+        '200':
+          description: Chat completion response or event stream
+          headers:
+            X-Semantic-Tag:
+              schema:
+                type: string
+            X-Semantic-Action:
+              schema:
+                type: string
+            X-Gateway-Profile:
+              schema:
+                type: string
+            X-Gateway-Request-Id:
+              schema:
+                type: string
+            X-Public-Model:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatCompletionsResponse'
+            text/event-stream:
+              schema:
+                type: string
+              example: |
+                data: {"id":"chatcmpl-1","object":"chat.completion.chunk","created":1770,"model":"testmodel","choices":[{"index":0,"delta":{"role":"assistant","content":"你好"},"finish_reason":null}]}
+
+                data: [DONE]
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Content blocked by policy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /chat/completions:
+    post:
+      tags: [Chat]
+      summary: OpenAI-compatible chat completions alias
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatCompletionsRequest'
+      responses:
+        '200':
+          description: Chat completion response or event stream
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatCompletionsResponse'
+            text/event-stream:
+              schema:
+                type: string
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Content blocked by policy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/responses:
+    post:
+      tags: [Responses]
+      summary: Responses API northbound endpoint
+      description: |
+        Current support:
+        - local `chat` and `bad` responses
+        - routed responses are not fully supported yet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResponsesRequest'
+      responses:
+        '200':
+          description: Local response or compatibility guidance
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ResponsesApiResponse'
+                  - $ref: '#/components/schemas/MessageOnlyResponse'
+            text/event-stream:
+              schema:
+                type: string
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /responses:
+    post:
+      tags: [Responses]
+      summary: Responses API alias
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResponsesRequest'
+      responses:
+        '200':
+          description: Local response or compatibility guidance
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ResponsesApiResponse'
+                  - $ref: '#/components/schemas/MessageOnlyResponse'
+            text/event-stream:
+              schema:
+                type: string
+components:
+  schemas:
+    ProbeResponse:
+      type: object
+      properties:
+        object:
+          type: string
+          example: gateway.status
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: f5-ai-gateway
+    ModelsResponse:
+      type: object
+      properties:
+        object:
+          type: string
+          example: list
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModelDescriptor'
+    ModelDescriptor:
+      type: object
+      properties:
+        id:
+          type: string
+          example: testmodel
+        object:
+          type: string
+          example: model
+        owned_by:
+          type: string
+          example: f5-ai-gateway
+    ChatCompletionsRequest:
+      type: object
+      required: [model, messages]
+      properties:
+        model:
+          type: string
+          example: testmodel
+        stream:
+          type: boolean
+          default: false
+        max_tokens:
+          type: integer
+        temperature:
+          type: number
+        top_p:
+          type: number
+        presence_penalty:
+          type: number
+        frequency_penalty:
+          type: number
+        stream_options:
+          type: object
+          additionalProperties: true
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatMessage'
+    ChatMessage:
+      type: object
+      required: [role, content]
+      properties:
+        role:
+          type: string
+          enum: [system, user, assistant]
+        content:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: object
+                additionalProperties: true
+    ChatCompletionsResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+          example: chat.completion
+        created:
+          type: integer
+        model:
+          type: string
+          example: testmodel
+        choices:
+          type: array
+          items:
+            type: object
+            properties:
+              index:
+                type: integer
+              finish_reason:
+                type: string
+                nullable: true
+              message:
+                type: object
+                properties:
+                  role:
+                    type: string
+                    example: assistant
+                  content:
+                    type: string
+        usage:
+          type: object
+          additionalProperties: true
+    ResponsesRequest:
+      type: object
+      required: [model, input]
+      properties:
+        model:
+          type: string
+          example: testmodel
+        stream:
+          type: boolean
+          default: false
+        input:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: object
+                additionalProperties: true
+    ResponsesApiResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+          example: response
+        model:
+          type: string
+        output:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        usage:
+          type: object
+          additionalProperties: true
+    MessageOnlyResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: 当前直连模式暂仅支持 /v1/chat/completions 的 routed 请求，请改用该接口。
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            message:
+              type: string
+            type:
+              type: string
+            code:
+              type: string
