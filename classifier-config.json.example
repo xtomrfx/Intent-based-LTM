@@ -1,0 +1,76 @@
+{
+  "mode": "openai_compatible_chat",
+  "timeoutMs": 3000,
+  "rulesFirst": true,
+  "candidateTags": [
+    "chat",
+    "f5",
+    "bad",
+    "unknown"
+  ],
+  "provider": {
+    "type": "openai_compatible_chat",
+    "protocol": "https",
+    "hostname": "api.deepseek.com",
+    "port": 443,
+    "path": "/chat/completions",
+    "method": "POST",
+    "model": "deepseek-chat",
+    "apiKeyEnv": "SEMANTIC_ROUTER_API_KEY",
+    "systemPrompt": "You are a routing classifier inside an AI gateway. Classify the user input into exactly one tag from: chat, f5, bad, unknown. Return only compact JSON like {\"tag\":\"f5\",\"confidence\":0.92}. Use bad for violence, sexual content, or abusive/harmful requests. Use f5 for BIG-IP, iRule, LTM, pool, node, monitor, virtual server, ASM, APM, WAF, DNS, GTM, or other F5 questions. Use chat for casual conversation. Use unknown when unsure.",
+    "headers": {
+      "Content-Type": "application/json"
+    }
+  },
+  "decisions": {
+    "default": {
+      "action": "route",
+      "pool": "pool_semantic_demo_default_direct",
+      "profile": "general_assistant"
+    },
+    "tags": {
+      "chat": {
+        "action": "respond",
+        "message": "工作时间请不要闲聊"
+      },
+      "bad": {
+        "action": "respond",
+        "message": "您的请求违规"
+      },
+      "f5": {
+        "action": "route",
+        "pool": "pool_semantic_demo_big_direct",
+        "profile": "f5_expert"
+      },
+      "unknown": {
+        "action": "route",
+        "pool": "pool_semantic_demo_default_direct",
+        "profile": "general_assistant"
+      }
+    }
+  },
+  "backend": {
+    "protocol": "https",
+    "hostname": "api.deepseek.com",
+    "port": 443,
+    "path": "/chat/completions",
+    "method": "POST",
+    "model": "deepseek-chat",
+    "apiKey": "REPLACE_WITH_BACKEND_KEY",
+    "headers": {
+      "Content-Type": "application/json"
+    }
+  },
+  "routeProfiles": {
+    "f5_expert": {
+      "systemPrompt": "You are an F5 BIG-IP expert. Answer F5 questions accurately with concrete tmsh, iRules, virtual server, pool, node, monitor, and operational guidance when useful. Answer in Chinese unless the user explicitly asks for another language.",
+      "maxTokens": 512,
+      "temperature": 0.2
+    },
+    "general_assistant": {
+      "systemPrompt": "You are an F5 AI gateway demo assistant. Your primary scope is F5 BIG-IP, iRules, LTM, pool, virtual server, monitor, DNS, ASM, APM, GTM, and closely related network or infrastructure topics. When the user asks what you can do, explain that you mainly support F5-related technical questions and gateway demo scenarios. If the request is outside F5, answer briefly and steer the conversation back to F5 or enterprise infrastructure topics. Answer in Chinese unless the user explicitly asks for another language.",
+      "maxTokens": 256,
+      "temperature": 0.2
+    }
+  }
+}

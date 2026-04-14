@@ -1,0 +1,11 @@
+create ltm data-group internal llm_semantic_route_map type string records add {
+    chat { data "pool:pool_semantic_demo_small" }
+    development { data "pool:pool_semantic_demo_big" }
+    query { data "pool:pool_semantic_demo_default" }
+    nsfw { data "drop:content_filtered" }
+    unknown { data "pool:pool_semantic_demo_default" }
+}
+
+create ltm pool pool_semantic_demo_small members add { 10.1.10.6:80 }
+create ltm pool pool_semantic_demo_big members add { 10.1.10.6:80 }
+create ltm pool pool_semantic_demo_default members add { 10.1.10.6:80 }
