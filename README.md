@@ -1,115 +1,68 @@
-# F5 LTM Native AI Gateway Demo
+# F5 LTM Semantic Routing Demo
 
-This workspace now models BIG-IP LTM as the AI gateway core, not just a tag router.
+This repository now tracks the current `8080` path only.
 
-## Target Architecture
+The active runtime is:
 
-- Client sends OpenAI or OpenAI-like requests to BIG-IP.
-- BIG-IP parses the northbound schema and extracts prompt text.
-- BIG-IP calls a configurable classifier endpoint.
-- BIG-IP applies semantic policy on-box.
-- BIG-IP calls a configurable model endpoint and performs schema transformation on-box.
-- Linux is only used as a test client for the demo.
+```text
+vs_llm_semantic_demo_8080
+  -> iRule llm_semantic_route
+  -> ILX plugin llm_semantic_plugin / llm_semantic_ext
+  -> TMM local respond or southbound route
+```
 
-## Demo Objects on BIG-IP
+The older `8081` / `llm_ai_gw_*` ILX-managed path has been removed from this repo and should no longer be treated as current.
 
-- Workspace: `llm_ai_gw_ws`
-- Extension: `gateway`
-- Plugin: `llm_ai_gw_plugin`
-- ILX profile: `llm_ai_gw_profile`
-- Virtual: `vs_llm_ai_gateway_8081`
+## Active Runtime Components
 
-## Client-facing APIs
+- Virtual server: `vs_llm_semantic_demo_8080`
+- iRule: `llm_semantic_route`
+- ILX plugin: `llm_semantic_plugin`
+- ILX extension entrypoint in this repo: `index.js`
+- ILX config example: `classifier-config.json.example`
+- Demo client/backend helpers: `semantic_client.py`, `semantic_backend.py`
 
-Northbound request paths accepted by the ILX HTTP server:
+## Current Behavior
 
-- `POST /v1/chat/completions`
-- `POST /chat/completions`
-- `POST /v1/responses`
-- `POST /responses`
-- `GET /health`
-- `GET /admin/config/schema`
-- `GET /admin/config/status`
-- `GET /admin/config/versions`
-- `GET /admin/policy/list`
-- `POST /admin/evaluate`
-- `POST /admin/config/validate`
-- `POST /admin/config/activate`
-- `POST /admin/config/rollback`
+- BIG-IP accepts OpenAI-like northbound requests on `8080`
+- ILX extracts prompt text and returns a lightweight decision
+- TMM performs local `respond` behavior for policy-driven replies
+- TMM rewrites and forwards routed requests to the selected backend pool
+- Linux only hosts demo helpers and the demo chatbot
 
-Supported response modes:
+The current supported northbound request families are documented in:
 
-- non-streaming JSON
-- streaming SSE
+- [customer-config-guide.md](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/customer-config-guide.md)
+- [northbound-southbound-support-profile.md](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/northbound-southbound-support-profile.md)
+- [f5-ai-gateway-openapi.yaml](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/f5-ai-gateway-openapi.yaml)
 
-## Southbound Capability in This Demo
+## Key Files
 
-BIG-IP calls the configured model endpoint directly from ILX and converts responses back into the client-facing schema.
+- [index.js](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/index.js)
+- [classifier-config.json.example](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/classifier-config.json.example)
+- [llm_semantic_route.tcl](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/llm_semantic_route.tcl)
+- [llm_semantic_rule.conf](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/llm_semantic_rule.conf)
+- [deploy-demo.tmsh](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/deploy-demo.tmsh)
+- [semantic_client.py](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/semantic_client.py)
+- [semantic_backend.py](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/semantic_backend.py)
 
-Supported southbound pattern in the current code:
+## Validation
 
-- downstream chat-completions style endpoint
-- `provider_type: openai`
-- `provider_type: openai_like`
+Run the practical checks for the current `8080` path:
 
-The demo validates both provider shapes with DeepSeek because it accepts:
+```bash
+cd /Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo\ test/ltm-semantic-routing
+node --check index.js
+python3 -m py_compile semantic_backend.py semantic_client.py
+bash -n start-demo.sh stop-demo.sh
+```
 
-- `/chat/completions`
-- `/v1/chat/completions`
+For runtime changes, also review:
 
-## Configuration Model
+- `llm_semantic_route.tcl`
+- `llm_semantic_rule.conf`
+- `classifier-config.json.example`
 
-The main configuration file on BIG-IP is:
+## Historical Design Material
 
-- `/var/ilx/workspaces/Common/llm_ai_gw_ws/extensions/gateway/gateway-config.json`
-
-The formal config schema in this workspace is:
-
-- [gateway-config.schema.json](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo%20test/ltm-semantic-routing/gateway-config.schema.json)
-
-It contains four product-facing objects that map cleanly to a future UI:
-
-- `resources.classifiers`
-- `model_endpoints`
-- `pipeline`
-- `runtime`
-
-See:
-
-- [gateway-config.json.example](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo%20test/ltm-semantic-routing/gateway-config.json.example)
-- [gateway-pipeline-config.json.example](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo%20test/ltm-semantic-routing/gateway-pipeline-config.json.example)
-- [customer-config-guide.md](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo%20test/ltm-semantic-routing/customer-config-guide.md)
-- [northbound-southbound-support-profile.md](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo%20test/ltm-semantic-routing/northbound-southbound-support-profile.md)
-- [f5-ai-gateway-openapi.yaml](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo%20test/ltm-semantic-routing/f5-ai-gateway-openapi.yaml)
-
-## Files
-
-- [ai_gateway_plugin.js](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo%20test/ltm-semantic-routing/ai_gateway_plugin.js)
-- [gateway-config.json.example](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo%20test/ltm-semantic-routing/gateway-config.json.example)
-- [gateway-pipeline-config.json.example](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo%20test/ltm-semantic-routing/gateway-pipeline-config.json.example)
-- [ltm-gateway-notes.md](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo%20test/ltm-semantic-routing/ltm-gateway-notes.md)
-
-## Verified Demo Behavior
-
-- `chat` can respond directly from BIG-IP
-- `f5` can route to the engineering endpoint
-- `bad` can respond directly from BIG-IP without exposing backend models
-- tag list is derived from `pipeline.classify.tags` and `pipeline.policy.rules`, not duplicated in code
-- invalid config no longer silently replaces the active config
-- classifier resources are referenced by name from `pipeline[].classifier`
-- policy matching supports `tag`, `confidence_gte`, `northbound_type`, `client_model`, `path`, `tenant`, `headers`, and `prompt_regex`
-- `/admin/evaluate` can show classifier result, matched policy, endpoint, and downstream model without sending business traffic
-- `/admin/config/validate`, `/admin/config/activate`, `/admin/config/rollback`, and `/admin/config/versions` provide an API-driven config lifecycle
-- explicit `pipeline` mode supports multi-operation rules such as `set_system_prompt -> route`
-- `/v1/chat/completions` returns OpenAI chat-completions schema
-- `/chat/completions` works as OpenAI-like northbound alias
-- `/v1/responses` returns Responses API schema
-- chat streaming is proxied as chat-completion SSE
-- responses streaming is transformed into Responses SSE events
-
-## Notes
-
-- The plugin is written conservatively for BIG-IP Node.js 6.9.1.
-- `startHttpServer()` is used, so the demo virtual should not have an HTTP profile attached.
-- The current demo focuses on on-box classification, semantic routing, model endpoint selection, schema transformation, and config-driven policy dispatch.
-- Future pipeline stages such as semantic cache should be modeled as additional configurable service steps, not hard-coded branches.
+Some design and planning documents in this repository still discuss future control-plane ideas or previously explored migration approaches. Treat them as design history, not as the current runtime implementation.
