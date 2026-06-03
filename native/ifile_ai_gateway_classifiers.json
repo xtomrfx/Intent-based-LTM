@@ -1,0 +1,31 @@
+{
+  "schema": "f5-ai-gateway.classifiers/v1",
+  "generated_at_utc": "2026-05-04T11:25:50Z",
+  "source": {
+    "canonical_file": "gateway-config.canonical.json",
+    "config_sha256": "sha256:f34eb60cac13ed7d995afec702a00e1446c1bc05e53b3051d7e241e2a13e855c"
+  },
+  "classifiers": {
+    "classifier_main": {
+      "classifier_name": "classifier_main",
+      "classifier_type": "classifier_llm",
+      "schema_family": "openai_chat_compatible",
+      "endpoint_url": "https://api.deepseek.com/chat/completions",
+      "api_key_env": "SEMANTIC_ROUTER_API_KEY",
+      "pool_name": "pool_semantic_demo_default_direct",
+      "model_id": "deepseek-chat",
+      "temperature": 0,
+      "max_tokens": 32,
+      "classifier_prompt": "You are a routing classifier inside an AI gateway. Classify the user input into exactly one tag from: chat, f5, bad, unknown. Return only compact JSON like {\"tag\":\"f5\",\"confidence\":0.92}. Use bad for violence, sexual content, or abusive/harmful requests. Use f5 for BIG-IP, iRule, LTM, pool, node, monitor, virtual server, ASM, APM, WAF, DNS, GTM, or other F5 questions. Use chat for casual conversation. Use unknown when unsure.",
+      "candidate_tags": [
+        "chat",
+        "f5",
+        "bad",
+        "unknown"
+      ],
+      "fallback_tag": "unknown",
+      "use_built_in_rules_first": true,
+      "timeout_ms": 3000
+    }
+  }
+}

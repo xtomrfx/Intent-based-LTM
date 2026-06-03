@@ -1,0 +1,11 @@
+{
+  "applicationTemplates": {
+    "a3f3a2d6-7c6c-4f44-9f8b-5b4c0fd0e201": {
+      "id": "AITrafficOrchestrator",
+      "templateLabel": "AI Traffic Orchestrator",
+      "templateId": "a3f3a2d6-7c6c-4f44-9f8b-5b4c0fd0e201",
+      "f5TemplateId": "a3f3a2d6-7c6c-4f44-9f8b-5b4c0fd0e201",
+      "description": "AI Traffic Orchestrator native iApps LX UI preview"
+    }
+  }
+}

@@ -6,3 +6,6 @@ __pycache__/
 *.swo
 .tmp_*
 *.log
+.playwright-cli/
+dist/
+publish-backups/
