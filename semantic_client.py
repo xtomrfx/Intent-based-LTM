@@ -13,7 +13,7 @@ import requests
 PORT = int(os.environ.get("CLIENT_PORT", "18080"))
 F5_BASE = os.environ.get("F5_BASE", "http://10.1.10.12:8080").rstrip("/")
 TIMEOUT = int(os.environ.get("CLIENT_TIMEOUT", "75"))
-API_KEY = os.environ.get("CLIENT_API_KEY", "test-key")
+API_KEY = os.environ.get("CLIENT_API_KEY", "")
 DEFAULT_MODEL = os.environ.get("CLIENT_MODEL", "testmodel")
 TITLE = os.environ.get("CLIENT_TITLE", "F5 AI Gateway Demo")
 APP_VERSION = os.environ.get("CLIENT_VERSION", "2026.04.12-3")
@@ -133,10 +133,10 @@ HTML_TEMPLATE = """<!doctype html>
       color: var(--muted);
       margin: 0 0 8px;
     }
-    select, textarea, button {
+    select, textarea, input, button {
       font: inherit;
     }
-    select, textarea {
+    select, textarea, input {
       width: 100%;
       border-radius: 18px;
       border: 1px solid rgba(160,188,232,0.18);
@@ -145,7 +145,7 @@ HTML_TEMPLATE = """<!doctype html>
       padding: 14px 16px;
       outline: none;
     }
-    select { height: 50px; }
+    select, input { height: 50px; }
     textarea {
       min-height: 150px;
       resize: vertical;
@@ -370,8 +370,12 @@ HTML_TEMPLATE = """<!doctype html>
 
       <section class="section">
         <h3>Controls</h3>
-        <label for="model">Northbound model</label>
-        <select id="model"></select>
+        <label for="model">Model ID</label>
+        <input id="model" type="text" spellcheck="false" placeholder="testmodel">
+        <label for="apiKey" style="margin-top: 12px;">API Key</label>
+        <input id="apiKey" type="password" spellcheck="false" autocomplete="off" placeholder="留空则使用服务端默认值">
+        <label for="gatewayBase" style="margin-top: 12px;">Gateway VS</label>
+        <input id="gatewayBase" type="text" inputmode="url" spellcheck="false" placeholder="http://10.1.10.12:8080">
         <div class="btn-row">
           <button id="clearBtn" type="button" class="secondary">清空会话</button>
           <button id="stopBtn" type="button" class="secondary" disabled>停止生成</button>
@@ -432,15 +436,18 @@ HTML_TEMPLATE = """<!doctype html>
   </div>
 
   <script>
+    const GATEWAY_BASE_STORAGE_KEY = 'f5-gateway-demo-chatbot-gateway-base';
+    const MODEL_ID_STORAGE_KEY = 'f5-gateway-demo-chatbot-model-id';
     const state = {
       messages: [],
       controller: null,
-      lastMeta: {},
-      models: []
+      lastMeta: {}
     };
 
     const els = {
       model: document.getElementById('model'),
+      apiKey: document.getElementById('apiKey'),
+      gatewayBase: document.getElementById('gatewayBase'),
       prompt: document.getElementById('prompt'),
       status: document.getElementById('status'),
       route: document.getElementById('route'),
@@ -548,21 +555,18 @@ HTML_TEMPLATE = """<!doctype html>
       return { event, payload };
     }
 
-    async function loadModels() {
+    async function loadDefaults() {
       try {
         const resp = await fetch('/api/models');
         const data = await resp.json();
-        state.models = data.models || [];
-        if (!state.models.length) {
-          state.models = [{ id: data.default_model || 'testmodel' }];
-        }
+        const savedModelId = localStorage.getItem(MODEL_ID_STORAGE_KEY);
+        const savedGatewayBase = localStorage.getItem(GATEWAY_BASE_STORAGE_KEY);
+        els.model.value = savedModelId || data.default_model || 'testmodel';
+        els.gatewayBase.value = savedGatewayBase || data.f5_base || '';
       } catch (err) {
-        state.models = [{ id: 'testmodel' }];
+        els.model.value = localStorage.getItem(MODEL_ID_STORAGE_KEY) || 'testmodel';
+        els.gatewayBase.value = localStorage.getItem(GATEWAY_BASE_STORAGE_KEY) || '';
       }
-
-      els.model.innerHTML = state.models
-        .map(item => '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(item.id) + '</option>')
-        .join('');
     }
 
     async function streamChat(startFresh) {
@@ -580,7 +584,13 @@ HTML_TEMPLATE = """<!doctype html>
         clearConversation();
       }
 
-      const model = els.model.value || 'testmodel';
+      const model = els.model.value.trim() || 'testmodel';
+      const apiKey = els.apiKey.value.trim();
+      const gatewayBase = els.gatewayBase.value.trim();
+      localStorage.setItem(MODEL_ID_STORAGE_KEY, model);
+      if (gatewayBase) {
+        localStorage.setItem(GATEWAY_BASE_STORAGE_KEY, gatewayBase);
+      }
       const requestId = 'demo-ui-' + Date.now().toString(36);
       const userMessage = { role: 'user', content: prompt };
       state.messages.push(userMessage);
@@ -597,6 +607,8 @@ HTML_TEMPLATE = """<!doctype html>
 
       const requestBody = {
         model,
+        api_key: apiKey,
+        gateway_base: gatewayBase,
         request_id: requestId,
         messages: state.messages
       };
@@ -713,6 +725,24 @@ HTML_TEMPLATE = """<!doctype html>
     els.sendBtn.addEventListener('click', () => streamChat(false));
     els.sendFreshBtn.addEventListener('click', () => streamChat(true));
     els.clearBtn.addEventListener('click', clearConversation);
+    els.model.addEventListener('change', () => {
+      const value = els.model.value.trim();
+      if (value) {
+        localStorage.setItem(MODEL_ID_STORAGE_KEY, value);
+      }
+    });
+    els.model.addEventListener('blur', () => {
+      const value = els.model.value.trim();
+      if (value) {
+        localStorage.setItem(MODEL_ID_STORAGE_KEY, value);
+      }
+    });
+    els.gatewayBase.addEventListener('change', () => {
+      localStorage.setItem(GATEWAY_BASE_STORAGE_KEY, els.gatewayBase.value.trim());
+    });
+    els.gatewayBase.addEventListener('blur', () => {
+      localStorage.setItem(GATEWAY_BASE_STORAGE_KEY, els.gatewayBase.value.trim());
+    });
     els.stopBtn.addEventListener('click', () => {
       if (state.controller) {
         state.controller.abort();
@@ -725,7 +755,7 @@ HTML_TEMPLATE = """<!doctype html>
       }
     });
 
-    loadModels().then(() => {
+    loadDefaults().then(() => {
       renderRoute({});
       updateDebug({ ready: true, default_model: els.model.value });
       setStatus('客户端已就绪。发送后会以流式方式展示 F5 返回。', false);
@@ -742,10 +772,37 @@ def _json_bytes(payload):
     return json.dumps(payload, ensure_ascii=False).encode("utf-8")
 
 
-def _request_json(method, path, payload=None, headers=None, timeout=TIMEOUT):
+def _normalize_gateway_base(value):
+    raw = str(value or F5_BASE).strip()
+    if not raw:
+        raw = F5_BASE
+    if any(ch.isspace() for ch in raw):
+        raise ValueError("Gateway VS must not contain whitespace")
+    if "://" not in raw:
+        raw = "http://" + raw
+
+    parsed = urlparse(raw)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise ValueError("Gateway VS must be http(s)://host[:port]")
+    if parsed.username or parsed.password:
+        raise ValueError("Gateway VS must not include credentials")
+    try:
+        _ = parsed.port
+    except ValueError as exc:
+        raise ValueError("Gateway VS port is invalid") from exc
+    if not parsed.hostname:
+        raise ValueError("Gateway VS host is required")
+    if parsed.path not in ("", "/") or parsed.params or parsed.query or parsed.fragment:
+        raise ValueError("Gateway VS must include only scheme, host, and optional port")
+
+    return parsed.scheme + "://" + parsed.netloc
+
+
+def _request_json(method, path, payload=None, headers=None, timeout=TIMEOUT, base_url=None):
+    gateway_base = _normalize_gateway_base(base_url)
     response = requests.request(
         method,
-        F5_BASE + path,
+        gateway_base + path,
         json=payload if payload is not None else None,
         headers=headers or {},
         timeout=timeout,
@@ -849,7 +906,7 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             return None
 
-    def _current_meta(self, request_id, upstream_path, upstream_headers=None, elapsed_ms=None):
+    def _current_meta(self, request_id, upstream_path, upstream_headers=None, elapsed_ms=None, gateway_base=None):
         headers = upstream_headers or {}
         return {
             "request_id": headers.get("X-Gateway-Request-Id") or request_id,
@@ -859,6 +916,7 @@ class Handler(BaseHTTPRequestHandler):
             "client_model": headers.get("X-Client-Model", ""),
             "upstream_path": upstream_path,
             "elapsed_ms": elapsed_ms,
+            "gateway_base": gateway_base or F5_BASE,
         }
 
     def do_GET(self):
@@ -870,7 +928,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(200, {"ok": True, "service": TITLE, "f5_base": F5_BASE, "default_model": DEFAULT_MODEL})
             return
         if path == "/api/models":
-            self._send_json(200, {"models": [{"id": DEFAULT_MODEL}], "default_model": DEFAULT_MODEL})
+            self._send_json(200, {"models": [{"id": DEFAULT_MODEL}], "default_model": DEFAULT_MODEL, "f5_base": F5_BASE})
             return
 
         self._send_json(404, {"error": "not_found"})
@@ -888,7 +946,13 @@ class Handler(BaseHTTPRequestHandler):
 
         messages = body.get("messages") or []
         model = (body.get("model") or DEFAULT_MODEL).strip() or DEFAULT_MODEL
+        api_key = (body.get("api_key") or "").strip() or API_KEY
         request_id = body.get("request_id") or ("demo-" + uuid.uuid4().hex[:12])
+        try:
+            gateway_base = _normalize_gateway_base(body.get("gateway_base") or F5_BASE)
+        except ValueError as exc:
+            self._send_json(400, {"error": "invalid_gateway_vs", "message": str(exc)})
+            return
 
         if not isinstance(messages, list) or not messages:
             self._send_json(400, {"error": "empty_messages"})
@@ -919,14 +983,15 @@ class Handler(BaseHTTPRequestHandler):
         }
         headers = {
             "Content-Type": "application/json",
-            "Authorization": "Bearer " + API_KEY,
             "x-request-id": request_id,
         }
+        if api_key:
+            headers["Authorization"] = "Bearer " + api_key
         upstream_path = "/v1/chat/completions"
         started_at = time.time()
         upstream = None
         upstream_headers = {}
-        meta = self._current_meta(request_id, upstream_path, upstream_headers, 0)
+        meta = self._current_meta(request_id, upstream_path, upstream_headers, 0, gateway_base)
 
         self.close_connection = True
         self._send_sse_headers()
@@ -934,13 +999,14 @@ class Handler(BaseHTTPRequestHandler):
         try:
             self._write_sse("ack", {
                 "request_id": request_id,
+                "gateway_base": gateway_base,
                 "connected": True,
                 "stage": "connecting_upstream",
                 "started_at_ms": int(started_at * 1000)
             })
 
             try:
-                upstream = _request_json("POST", upstream_path, payload=payload, headers=headers)
+                upstream = _request_json("POST", upstream_path, payload=payload, headers=headers, base_url=gateway_base)
             except requests.HTTPError as exc:
                 detail = ""
                 if exc.response is not None:
@@ -949,7 +1015,7 @@ class Handler(BaseHTTPRequestHandler):
                     "message": "上游返回 HTTP 错误",
                     "code": "upstream_http_error",
                     "detail": detail,
-                    "meta": self._current_meta(request_id, upstream_path, upstream_headers, int((time.time() - started_at) * 1000))
+                    "meta": self._current_meta(request_id, upstream_path, upstream_headers, int((time.time() - started_at) * 1000), gateway_base)
                 })
                 return
             except Exception as exc:
@@ -957,12 +1023,12 @@ class Handler(BaseHTTPRequestHandler):
                     "message": "连接 F5 失败",
                     "code": "upstream_error",
                     "detail": str(exc),
-                    "meta": self._current_meta(request_id, upstream_path, upstream_headers, int((time.time() - started_at) * 1000))
+                    "meta": self._current_meta(request_id, upstream_path, upstream_headers, int((time.time() - started_at) * 1000), gateway_base)
                 })
                 return
 
             upstream_headers = dict(upstream.headers.items())
-            meta = self._current_meta(request_id, upstream_path, upstream_headers, 0)
+            meta = self._current_meta(request_id, upstream_path, upstream_headers, 0, gateway_base)
             self._write_sse("meta", meta)
 
             content_type = upstream.headers.get("Content-Type", "")
@@ -1012,7 +1078,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._write_sse("error", {
                     "message": str(exc),
                     "code": "client_stream_error",
-                    "meta": self._current_meta(request_id, upstream_path, upstream_headers, int((time.time() - started_at) * 1000))
+                    "meta": self._current_meta(request_id, upstream_path, upstream_headers, int((time.time() - started_at) * 1000), gateway_base)
                 })
             except Exception:
                 return

@@ -9,7 +9,7 @@ WorkingDirectory=/home/ubuntu/f5-gateway-demo-chatbot
 Environment=CLIENT_PORT=18080
 Environment=F5_BASE=http://10.1.10.12:8080
 Environment=CLIENT_TIMEOUT=75
-Environment=CLIENT_API_KEY=test-key
+Environment=CLIENT_API_KEY=
 Environment=CLIENT_MODEL=testmodel
 Environment=CLIENT_VERSION=2026.04.12-3
 ExecStart=/usr/bin/python3 /home/ubuntu/f5-gateway-demo-chatbot/semantic_client.py

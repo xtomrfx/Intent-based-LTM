@@ -1,0 +1,64 @@
+{
+  "schema": "f5-ai-gateway.routing-policies/v1",
+  "generated_at_utc": "2026-05-04T11:25:50Z",
+  "source": {
+    "canonical_file": "gateway-config.canonical.json",
+    "config_sha256": "sha256:f34eb60cac13ed7d995afec702a00e1446c1bc05e53b3051d7e241e2a13e855c"
+  },
+  "routingPolicies": {
+    "routing_main": {
+      "policy_type": "routing",
+      "policy_name": "routing_main",
+      "routing_mode": "classifier_only",
+      "classifier_ref": "classifier_main",
+      "key_rules": [],
+      "default_rule": {
+        "action": "route",
+        "backend_target_ref": "backend_general"
+      },
+      "rules": [
+        {
+          "rule_name": "chat_local_response",
+          "source_tag": "chat",
+          "action": "respond",
+          "response_message": "工作时间请不要闲聊",
+          "enabled": true
+        },
+        {
+          "rule_name": "bad_local_response",
+          "source_tag": "bad",
+          "action": "respond",
+          "response_message": "您的请求违规",
+          "enabled": true
+        },
+        {
+          "rule_name": "f5_route_expert",
+          "source_tag": "f5",
+          "action": "route",
+          "backend_target_ref": "backend_f5_expert",
+          "enabled": true
+        },
+        {
+          "rule_name": "unknown_route_default",
+          "source_tag": "unknown",
+          "action": "route",
+          "backend_target_ref": "backend_general",
+          "enabled": true
+        }
+      ]
+    },
+    "orchestrator_reserved": {
+      "policy_type": "orchestrator",
+      "policy_name": "orchestrator_reserved",
+      "routing_mode": "classifier_only",
+      "classifier_ref": "classifier_main",
+      "fallback_backend_target_ref": "",
+      "default_rule": {
+        "action": "route",
+        "backend_target_ref": "backend_general",
+        "response_message": ""
+      },
+      "rules": []
+    }
+  }
+}

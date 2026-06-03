@@ -2,6 +2,52 @@
 
 本文档对应当前直连版演示环境。
 
+补充说明：
+
+- 当前已部署环境仍主要使用运行时兼容配置形态：`targetModels + promptProfiles + decisions`
+- 本地仓库现在同时支持更适合 UI / iApp / F5 native publishing 的对象模型：
+  - `listeners`
+  - `classifiers`
+  - `backendTargets`
+  - `routingPolicies`
+- 本地还保留了一份更适合人阅读和 review 的 canonical JSON：
+  - `gateway-config.canonical.json`
+- 本地 renderer 现在会额外生成一份 native publish bundle：
+  - `gateway-native-artifacts.json`
+  - 它用于 review `Data Group + iFile` 发布内容
+- 本地 publisher 入口：
+  - `publish_gateway_native_artifacts.py`
+- 本地 rollback helper：
+  - `rollback_gateway_native_artifacts.py`
+- 本地 validator 入口：
+  - `validate_gateway_canonical.py`
+- 发布流程会额外生成一份 snapshot JSON，方便设备侧留档和排障：
+  - `gateway-config.snapshot.json`
+- 现阶段 ILX 运行态会先读取 `classifier-config.json`，再尝试 overlay：
+  - `native/ifile_ai_gateway_classifiers.json`
+  - `native/ifile_ai_gateway_backend_targets.json`
+  - `native/ifile_ai_gateway_routing_policies.json`
+- 推荐把新控制面配置先写成对象模型，再由发布流程渲染为 F5 原生对象与运行时配置
+- 当前推荐流程是：
+  - 先跑 `validate_gateway_canonical.py`
+  - 可选先跑 `publish_gateway_native_artifacts.py --diff`
+  - 再跑 render / publish
+  - 如需恢复对象状态，可基于 `publish-backups/latest` 生成 `rollback-plan`
+  - `publish-manifest.json` 可用于审计 checksum、desired/remote state 与 verification status
+- 当前 ILX `health` 已经会输出：
+  - active listener / classifier / routing policy ref
+  - listener / classifier / backend target / routing policy count
+  - native overlay file path 与 loaded key 状态
+- 当前 listener 级 northbound 行为已部分脱离 iRule 硬编码，以下字段由 `dg_ai_gateway_listener_settings` 驱动：
+  - `root_paths`
+  - `model_paths`
+  - `chat_paths`
+  - `responses_paths`
+  - `northbound_api_mode`
+  - `chat_completions_support`
+  - `responses_support`
+- 相关计划见 [f5-native-config-refactor-plan.md](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/f5-native-config-refactor-plan.md)
+
 接口与支持边界的正式说明见：
 
 - [northbound-southbound-support-profile.md](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo%20test/ltm-semantic-routing/northbound-southbound-support-profile.md)
@@ -165,11 +211,29 @@ iRule 当前负责“接流量并执行决策”。
 
 ### classification model 的输入
 
-当前实现支持两种 provider 形态：
+当前实现不再把分类模型和后端模型简单写死成 `provider/backend` 两块，而是统一抽成：
 
-1. `openai_compatible_chat`
-   - ILX 会向分类模型发送标准 chat body
-   - 结构类似：
+- `schema_family`
+  - 定义 provider 协议族
+- `targetModel_type`
+  - `classifier_llm`
+  - `classifier_nli`
+  - `backend_llm`
+- `prompt_profile`
+  - 定义 system prompt 的 `append/rewrite` 规则
+  - 或定义 NLI labels / hypothesis / decision policy
+
+分类模型当前支持两大类：
+
+1. `classifier_llm`
+   - 适合 OpenAI-compatible / Ollama OpenAI-compatible chat 类模型
+   - 通过：
+     - `schema_family`
+     - `provider_config`
+     - `prompt_profile`
+     生成 southbound 请求
+
+   典型请求结构：
 
 ```json
 {
@@ -179,7 +243,7 @@ iRule 当前负责“接流量并执行决策”。
   "messages": [
     {
       "role": "system",
-      "content": "You are a routing classifier inside an AI gateway..."
+      "content": "<原始 system prompt 与分类 prompt_profile 按 append/rewrite 合成后的结果>"
     },
     {
       "role": "user",
@@ -189,78 +253,123 @@ iRule 当前负责“接流量并执行决策”。
 }
 ```
 
-2. `classifier_http`
-   - ILX 会向分类服务发送更简单的 HTTP JSON
-   - 结构类似：
+2. `classifier_nli`
+   - 适合 mDeBERTa-v3-base-mnli-xnli 这类 NLI / zero-shot classification 模型
+   - 不依赖 system prompt
+   - 依赖：
+     - `labels`
+     - `hypothesis_template`
+     - `multi_label`
+     - `decision_policy`
+
+   当前 runtime 支持的 `schema_family` 有：
+
+   - `hf_zero_shot_classification`
+   - `nli_pairs_json`
+   - `custom_label_scores`
+   - `legacy_classifier_http`
+
+   其中 `hf_zero_shot_classification` 的典型请求是：
 
 ```json
 {
-  "text": "<extracted prompt>",
-  "candidate_tags": ["chat", "f5", "bad", "unknown"],
-  "metadata": {
-    "path": "/v1/chat/completions",
-    "contentType": "application/json",
-    "promptLength": 123
+  "inputs": "<extracted prompt>",
+  "parameters": {
+    "candidate_labels": [
+      "casual chat",
+      "F5 BIG-IP technical support",
+      "harmful or disallowed request"
+    ],
+    "hypothesis_template": "This text is about {}.",
+    "multi_label": false
   }
 }
 ```
 
 ### classification model 应该如何返回 tag
 
-是的，当前实现就是通过 **约定输出格式** 来拿 tag。
+这取决于 `targetModel_type`。
 
-推荐返回格式是紧凑 JSON，例如：
+#### `classifier_llm`
+
+推荐返回紧凑 JSON：
 
 ```json
 {"tag":"f5","confidence":0.92}
 ```
 
-当前 ILX 能接受的返回形式有两类：
+当前 runtime 能接受：
 
-1. provider 直接返回顶层 JSON：
+1. 顶层 JSON：`{"tag":"chat","confidence":0.81}`
+2. OpenAI-compatible `choices[0].message.content` 里的 JSON 字符串
 
-```json
-{"tag":"chat","confidence":0.81}
-```
-
-2. OpenAI-compatible model 在 `choices[0].message.content` 中返回 JSON 字符串：
-
-```json
-{
-  "choices": [
-    {
-      "message": {
-        "content": "{\"tag\":\"f5\",\"confidence\":0.92}"
-      }
-    }
-  ]
-}
-```
-
-如果模型没有严格返回 JSON，ILX 还会尝试从文本中用正则提取：
+如果模型没有严格返回 JSON，ILX 仍会尝试从文本里提取：
 
 - `tag`
 - `category`
 - `label`
 
-但正式建议仍然是：**让 classification model 按 JSON 输出**。
+#### `classifier_nli`
 
-### 当前默认 prompt 的作用
+`parse_response()` 不直接要求 provider 返回最终 tag，而是返回统一 evidence。
 
-默认 classification prompt 会明确告诉模型：
+然后由：
 
-- 只能从 `chat / f5 / bad / unknown` 中选一个
-- 只返回紧凑 JSON
-- `bad` 用于暴力、色情、辱骂、恶意请求
-- `f5` 用于 BIG-IP、iRules、LTM、pool、node、monitor、virtual server、ASM、APM、WAF、DNS、GTM 等问题
-- `chat` 用于闲聊
-- `unknown` 用于不确定或一般能力询问
+- `finalize_classification(evidence, prompt_profile)`
 
-因此，当前 tag 不是后端分类模型“自由发挥”的，而是：
+根据：
 
-- 先由 ILX 提取 prompt
-- 再通过规则和/或 classification model
-- 最终按约定格式收敛成标准 tag
+- `decision_policy.fallback_label`
+- `decision_policy.min_confidence`
+- `decision_policy.min_margin`
+
+做最终 tag 决策，输出：
+
+```json
+{
+  "tag": "f5",
+  "confidence": 0.91,
+  "candidates": [
+    { "internal_label": "f5", "score": 0.91 },
+    { "internal_label": "chat", "score": 0.06 }
+  ],
+  "source": "provider_nli"
+}
+```
+
+### `prompt_profile` 的作用
+
+#### 对 `classifier_llm`
+
+`prompt_profile.system_prompt` 支持：
+
+- `append`
+- `rewrite`
+
+规则：
+
+- `append`
+  - 把配置里的 prompt 追加到客户端原始 system prompt 后面
+  - 如果 `value=""`，相当于不改原始 system prompt
+- `rewrite`
+  - 直接覆盖原始 system prompt
+
+默认约定：
+
+- `ClassifierModels`
+  - 默认 `append` 你填写的分类提示词
+- `BackendModels`
+  - 默认 `append` 空值
+  - 也就是保持用户原始 system prompt 不变
+
+#### 对 `classifier_nli`
+
+`prompt_profile` 不再表示 system prompt，而表示分类任务定义：
+
+- `labels`
+- `hypothesis_template`
+- `multi_label`
+- `decision_policy`
 
 ## 1. 当前能力边界
 
@@ -348,26 +457,105 @@ iRule 当前负责“接流量并执行决策”。
   "mode": "openai_compatible_chat",
   "timeoutMs": 3000,
   "rulesFirst": true,
-  "candidateTags": ["chat", "f5", "bad", "unknown"],
-  "provider": {
-    "type": "openai_compatible_chat",
-    "protocol": "https",
-    "hostname": "api.deepseek.com",
-    "port": 443,
-    "path": "/chat/completions",
-    "method": "POST",
-    "model": "deepseek-chat",
-    "apiKey": "REPLACE_WITH_CLASSIFIER_KEY",
-    "systemPrompt": "You are a routing classifier inside an AI gateway. Classify the user input into exactly one tag from: chat, f5, bad, unknown. Return only compact JSON like {\"tag\":\"f5\",\"confidence\":0.92}. Use bad for violence, sexual content, or abusive/harmful requests. Use f5 for BIG-IP, iRule, LTM, pool, node, monitor, virtual server, ASM, APM, WAF, DNS, GTM, or other F5 questions. Use chat for casual conversation. Use unknown when unsure.",
-    "headers": {
-      "Content-Type": "application/json"
+  "candidateTags": [
+    "chat",
+    "f5",
+    "bad",
+    "unknown"
+  ],
+  "targetModels": {
+    "ClassifierModels": {
+      "schema_family": "openai_chat_compatible",
+      "targetModel_type": "classifier_llm",
+      "provider_config": {
+        "protocol": "https",
+        "hostname": "api.deepseek.com",
+        "port": 443,
+        "path": "/chat/completions",
+        "method": "POST",
+        "model": "deepseek-chat",
+        "apiKey": "REPLACE_WITH_CLASSIFIER_KEY",
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "prompt_profile": "classifier_default"
+    },
+    "BackendModels": {
+      "schema_family": "openai_chat_compatible",
+      "targetModel_type": "backend_llm",
+      "provider_config": {
+        "protocol": "https",
+        "hostname": "api.deepseek.com",
+        "port": 443,
+        "path": "/chat/completions",
+        "method": "POST",
+        "model": "deepseek-chat",
+        "apiKey": "REPLACE_WITH_BACKEND_KEY",
+        "acceptClientModel": false,
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "prompt_profile": "backend_default"
+    }
+  },
+  "promptProfiles": {
+    "classifier_default": {
+      "type": "classifier_llm",
+      "system_prompt": {
+        "mode": "append",
+        "value": "You are a routing classifier inside an AI gateway. Classify the user input into exactly one tag from: chat, f5, bad, unknown. Return only compact JSON like {\"tag\":\"f5\",\"confidence\":0.92}. Use bad for violence, sexual content, or abusive/harmful requests. Use f5 for BIG-IP, iRule, LTM, pool, node, monitor, virtual server, ASM, APM, WAF, DNS, GTM, or other F5 questions. Use chat for casual conversation. Use unknown when unsure."
+      },
+      "temperature": 0,
+      "max_tokens": 32
+    },
+    "backend_default": {
+      "type": "backend_llm",
+      "system_prompt": {
+        "mode": "append",
+        "value": ""
+      }
+    },
+    "f5_expert": {
+      "type": "backend_llm",
+      "system_prompt": {
+        "mode": "append",
+        "value": "You are an F5 BIG-IP expert. Answer F5 questions accurately with concrete tmsh, iRules, virtual server, pool, node, monitor, and operational guidance when useful. Answer in Chinese unless the user explicitly asks for another language."
+      },
+      "max_tokens": 512,
+      "temperature": 0.2
+    },
+    "general_assistant": {
+      "type": "backend_llm",
+      "system_prompt": {
+        "mode": "append",
+        "value": "You are an F5 AI gateway demo assistant. Your primary scope is F5 BIG-IP, iRules, LTM, pool, virtual server, monitor, DNS, ASM, APM, GTM, and closely related network or infrastructure topics. When the user asks what you can do, explain that you mainly support F5-related technical questions and gateway demo scenarios. If the request is outside F5, answer briefly and steer the conversation back to F5 or enterprise infrastructure topics. Answer in Chinese unless the user explicitly asks for another language."
+      },
+      "max_tokens": 256,
+      "temperature": 0.2
+    },
+    "classifier_nli_default": {
+      "type": "classifier_nli",
+      "labels": [
+        { "id": "chat", "text": "casual chat" },
+        { "id": "f5", "text": "F5 BIG-IP technical support" },
+        { "id": "bad", "text": "harmful or disallowed request" }
+      ],
+      "hypothesis_template": "This text is about {}.",
+      "multi_label": false,
+      "decision_policy": {
+        "fallback_label": "unknown",
+        "min_confidence": 0.55,
+        "min_margin": 0.12
+      }
     }
   },
   "decisions": {
     "default": {
       "action": "route",
       "pool": "pool_semantic_demo_default_direct",
-      "profile": "general_assistant"
+      "prompt_profile": "general_assistant"
     },
     "tags": {
       "chat": {
@@ -381,37 +569,13 @@ iRule 当前负责“接流量并执行决策”。
       "f5": {
         "action": "route",
         "pool": "pool_semantic_demo_big_direct",
-        "profile": "f5_expert"
+        "prompt_profile": "f5_expert"
       },
       "unknown": {
         "action": "route",
         "pool": "pool_semantic_demo_default_direct",
-        "profile": "general_assistant"
+        "prompt_profile": "general_assistant"
       }
-    }
-  },
-  "backend": {
-    "protocol": "https",
-    "hostname": "api.deepseek.com",
-    "port": 443,
-    "path": "/chat/completions",
-    "method": "POST",
-    "model": "deepseek-chat",
-    "apiKey": "REPLACE_WITH_BACKEND_KEY",
-    "headers": {
-      "Content-Type": "application/json"
-    }
-  },
-  "routeProfiles": {
-    "f5_expert": {
-      "systemPrompt": "You are an F5 BIG-IP expert. Answer F5 questions accurately with concrete tmsh, iRules, virtual server, pool, node, monitor, and operational guidance when useful. Answer in Chinese unless the user explicitly asks for another language.",
-      "maxTokens": 512,
-      "temperature": 0.2
-    },
-    "general_assistant": {
-      "systemPrompt": "You are an F5 AI gateway demo assistant. Your primary scope is F5 BIG-IP, iRules, LTM, pool, virtual server, monitor, DNS, ASM, APM, GTM, and closely related network or infrastructure topics. When the user asks what you can do, explain that you mainly support F5-related technical questions and gateway demo scenarios. If the request is outside F5, answer briefly and steer the conversation back to F5 or enterprise infrastructure topics. Answer in Chinese unless the user explicitly asks for another language.",
-      "maxTokens": 256,
-      "temperature": 0.2
     }
   }
 }
@@ -423,134 +587,181 @@ iRule 当前负责“接流量并执行决策”。
 
 | 字段 | 说明 |
 | --- | --- |
-| `mode` | 当前固定使用 `openai_compatible_chat` |
-| `timeoutMs` | classifier southbound 调用超时，单位毫秒 |
+| `mode` | 当前保留运行模式开关，主要影响 `local_only` / `mock` 行为 |
+| `timeoutMs` | 缺省 southbound 调用超时，单位毫秒 |
 | `rulesFirst` | 是否先跑内建规则，再调用分类模型 |
-| `candidateTags` | 允许分类器输出的 tag 集 |
-| `provider` | 分类模型 endpoint 配置 |
-| `decisions` | tag -> action / pool / profile / message |
-| `backend` | routed 后端模型的 southbound 配置 |
-| `routeProfiles` | routed 请求的 system prompt、max tokens、temperature |
+| `candidateTags` | 当前标准 tag 集 |
+| `targetModels` | 分类模型与后端模型的统一抽象 |
+| `promptProfiles` | LLM prompt profile 或 NLI classification profile |
+| `decisions` | tag -> action / pool / prompt_profile / message |
 
-### 5.2 `provider`
+### 5.2 `targetModels`
 
-这是分类模型配置，不是业务模型。
+这里有两个当前固定入口：
 
-常用字段：
+- `ClassifierModels`
+- `BackendModels`
 
-- `hostname`
-- `path`
-- `model`
-- `apiKey`
-- `systemPrompt`
+每个 target model 都包含：
 
-要求：
+- `schema_family`
+- `targetModel_type`
+- `provider_config`
+- `prompt_profile`
 
-- `candidateTags` 和 `systemPrompt` 里写的 tag 必须一致
-- 如果你新增 tag，例如 `billing`，必须同时改：
-  - `candidateTags`
-  - `systemPrompt`
-  - `decisions.tags.billing`
+#### `ClassifierModels`
 
-### 5.3 `decisions`
+当前支持：
+
+- `targetModel_type = classifier_llm`
+- `targetModel_type = classifier_nli`
+
+常见 `schema_family`：
+
+- `openai_chat_compatible`
+- `ollama_openai_compatible`
+- `hf_zero_shot_classification`
+- `nli_pairs_json`
+- `custom_label_scores`
+- `legacy_classifier_http`
+
+#### `BackendModels`
+
+当前 `targetModel_type` 固定是：
+
+- `backend_llm`
+
+当前正式支持的 `schema_family` 是：
+
+- `openai_chat_compatible`
+- `ollama_openai_compatible`
+
+也就是说，如果 Ollama 走它的 OpenAI compatibility `/v1/chat/completions`，分类和 routed backend 都可以共用同一套 LLM request builder。
+
+### 5.3 `promptProfiles`
+
+#### LLM prompt profile
+
+适用于：
+
+- `classifier_llm`
+- `backend_llm`
+
+关键字段：
+
+- `system_prompt.mode`
+  - `append`
+  - `rewrite`
+- `system_prompt.value`
+- `temperature`
+- `max_tokens`
+
+语义：
+
+- `append`
+  - 追加到原始 system prompt
+  - `value=""` 时等价于 no-op
+- `rewrite`
+  - 覆盖原始 system prompt
+
+默认约定：
+
+- `ClassifierModels`
+  - 默认 `append` 分类提示词
+- `BackendModels`
+  - 默认 `append` 空值
+
+#### NLI prompt profile
+
+适用于：
+
+- `classifier_nli`
+
+关键字段：
+
+- `labels`
+- `hypothesis_template`
+- `multi_label`
+- `decision_policy`
+
+其中：
+
+- `parse_response()` 先返回 evidence
+- `finalize_classification()` 再结合 `decision_policy` 输出最终 tag
+
+### 5.4 `decisions`
 
 这是 tag 到动作的映射。
 
-动作只有两类：
+动作仍然只有两类：
 
 - `respond`
 - `route`
 
-例子：
+如果是 `route`，建议写：
 
-- `chat`
-  - `action=respond`
-  - `message=工作时间请不要闲聊`
-- `bad`
-  - `action=respond`
-  - `message=您的请求违规`
+- `pool`
+- `prompt_profile`
+
+例如：
+
 - `f5`
   - `action=route`
   - `pool=pool_semantic_demo_big_direct`
-  - `profile=f5_expert`
+  - `prompt_profile=f5_expert`
 
-### 5.4 `backend`
+### 5.5 `provider_config`
 
-这是 routed 请求真正要打到的 southbound 后端。
+`targetModels.*.provider_config` 里常见字段：
 
-当前字段含义：
-
+- `protocol`
 - `hostname`
-  - HTTP Host / SNI 所对应的后端主机名
+- `port`
 - `path`
-  - southbound path
+- `method`
 - `model`
-  - 实际发给后端的模型名
-- `apiKey`
-  - backend API key
+- `apiKey` / `apiKeyEnv`
+- `headers`
+- `acceptClientModel`
 
 说明：
 
-- 当前演示环境里，backend key 同时在 `classifier-config.json` 和 iRule fallback 里都配置了一份。
-- 原因是当前 BIG-IP ILX 运行路径下，发布目录和 workspace 目录分离，演示环境为了保证直连稳定性，保留了 F5 执行面 fallback。
-- 产品化时建议把 backend key 收敛到更正式的 F5 配置对象，不继续写死在 iRule 里。
-
-### 5.5 `routeProfiles`
-
-这是 routed 请求的“角色模板”。
-
-作用：
-
-- 在 routed 请求前，ILX 会把 `routeProfiles.<profile>.systemPrompt` 注入到 southbound request 里
-- 然后再把用户原始对话一并发给后端模型
-
-当前默认有两个 profile：
-
-- `f5_expert`
-  - 明确要求后端模型以 F5 BIG-IP 专家身份回答
-- `general_assistant`
-  - 明确要求回答范围以 F5 AI gateway 演示和企业基础设施为主
-
-这就是你问“你支持什么工作”时，不应该直接给出一个完全泛化回答的配置入口。
+- `ClassifierModels.provider_config`
+  - 定义分类模型 southbound 连接方式
+- `BackendModels.provider_config`
+  - 定义 routed backend southbound 连接方式
+- 当前 native UI/runtime 不再通过 iRule 静态变量保存 backend key 或固定 provider fallback
+- Backend API Key 由 UI 配置并在 ILX 决策结果中按请求下发，不写入 listener data-group
 
 ## 6. F5 执行面要配什么
 
 ### 6.1 iRule 静态变量
 
-当前活动 iRule 里有这些关键静态变量：
+当前活动 iRule 只保留运行入口和 data-group 路径等非敏感静态变量，例如：
 
-- `static::llm_semantic_default_pool`
-- `static::llm_semantic_default_profile`
-- `static::llm_semantic_backend_host`
-- `static::llm_semantic_backend_auth`
-
-当前演示环境里：
-
-- `static::llm_semantic_backend_host`
-  - `api.deepseek.com`
-- `static::llm_semantic_backend_auth`
-  - `Bearer <backend key>`
+- `static::llm_semantic_plugin`
+- `static::llm_semantic_extension`
+- `static::llm_semantic_max_payload`
+- `static::llm_semantic_timeout_ms`
+- `static::llm_semantic_dg_listener_refs`
+- `static::llm_semantic_dg_listener_settings`
 
 说明：
 
-- 这部分当前是产品实现层配置，不建议普通客户手改。
-- 如果要切换到另一个后端域名，除了改 `classifier-config.json.backend.hostname`，也必须同步改这里的 host/auth。
+- iRule 不再包含固定 default pool/profile/backend host/backend auth。
+- 如果 ILX 没有返回有效的 pool、upstream host 或 rewritten body，iRule 返回明确的 503 gateway error，而不是落到隐藏历史 backend。
+- Backend host、Authorization、model rewrite body 均来自当前 UI 部署后的 Backend Target 和 Routing Policy 决策。
 
 ### 6.2 pool
 
-当前 routed pool 是：
-
-- `/Common/pool_semantic_demo_big_direct`
-- `/Common/pool_semantic_demo_default_direct`
-
-当前演示里这两个 pool 都指向 DeepSeek 的 southbound 地址。
+当前 routed pool 由 Backend Target 的 `Referenced BIG-IP Pool` 引用。
 
 如果用户要切换到另一个后端：
 
-1. 改 pool member
-2. 改 `backend.hostname`
-3. 改 `static::llm_semantic_backend_host`
-4. 确认 server-ssl profile 的 `server-name`
+1. 在 BIG-IP Local Traffic 中创建或修改 LTM pool、members、monitor、LB method
+2. 在 Backend Target 里选择对应 `Referenced BIG-IP Pool`
+3. 配置 Backend Target 的 `Endpoint URL`、`API Key`、`Model ID`
+4. 部署 UI 配置
 
 ### 6.3 server-ssl profile
 
@@ -571,10 +782,10 @@ iRule 当前负责“接流量并执行决策”。
 推荐用户按这个顺序改：
 
 1. 先改 `candidateTags`
-2. 再改 `provider.systemPrompt`
+2. 再改 `promptProfiles.classifier_default`
 3. 再改 `decisions.tags`
-4. 再改 `routeProfiles`
-5. 最后确认 `backend` / pool / server-ssl 是否一致
+4. 再改 routed `promptProfiles`
+5. 最后确认 `targetModels.BackendModels.provider_config` / pool / server-ssl 是否一致
 
 如果只改了一半，最常见的问题就是：
 
@@ -646,7 +857,7 @@ curl -sS http://10.1.10.12:8080/v1/responses \
 
 ## 9. 如何判断配置是否生效
 
-当前 routed 响应会带这些调试头：
+当前 routed 响应会带这些状态头：
 
 - `X-Semantic-Tag`
 - `X-Semantic-Action`
@@ -654,23 +865,16 @@ curl -sS http://10.1.10.12:8080/v1/responses \
 - `X-Model-Endpoint`
 - `X-Gateway-Request-Id`
 - `X-Public-Model`
+- `X-Semantic-Fallback`
 
-当前演示环境还额外回显了：
-
-- `X-Debug-Auth-Len`
-- `X-Debug-Upstream-Host`
-- `X-Debug-Upstream-Path`
-
-这些头是为了演示和排查保留的。
+默认不回显 `X-Debug-*`，避免暴露 backend auth 长度或 upstream host/path 元数据。
 
 例子：
 
 - `X-Semantic-Tag: f5`
 - `X-Semantic-Action: route`
-- `X-Gateway-Profile: f5_expert`
-- `X-Debug-Auth-Len: 42`
-
-如果 `X-Debug-Auth-Len` 是 `0`，通常说明 backend auth 没配置进去。
+- `X-Model-Endpoint: /Common/pool_name`
+- `X-Semantic-Fallback: 0`
 
 ## 10. 当前不建议用户改什么
 

@@ -1,0 +1,254 @@
+{
+  "operatingMode": "gateway",
+  "activeIds": {
+    "listener": "",
+    "classifier": "classifier_main",
+    "backend": "",
+    "policy": "routing_main",
+    "ruleIndex": 0
+  },
+  "ui": {
+    "listenerEditorMode": "empty",
+    "backendEditorMode": "empty",
+    "policyEditorMode": "empty"
+  },
+  "listeners": {
+    "listener_8080": {
+      "listener_name": "listener_8080",
+      "virtual_service": "vs_llm_semantic_demo_8080",
+      "vip": "10.1.10.12",
+      "port": 8080,
+      "policy_ref": "routing_main",
+      "streaming": true,
+      "client_auth_type": "virtual_key",
+      "allowed_virtual_key_pool_refs": [
+        "vk_pool_rd"
+      ],
+      "advanced": {
+        "max_payload_bytes": 65535,
+        "decision_timeout_ms": 3200,
+        "request_id_mode": "auto"
+      },
+      "status": {
+        "northbound_api_mode": "OpenAI-compatible",
+        "supported_paths": [
+          "/",
+          "/v1",
+          "/v1/models",
+          "/models",
+          "/model/list",
+          "/v1/chat/completions",
+          "/chat/completions",
+          "/v1/responses",
+          "/responses"
+        ],
+        "chat_completions_support": "full",
+        "responses_support": "partial",
+        "assigned_irule": "llm_semantic_route_phase2",
+        "status": "active"
+      }
+    }
+  },
+  "classifiers": {
+    "classifier_main": {
+      "classifier_name": "classifier_main",
+      "classifier_type": "classifier_llm",
+      "schema_family": "openai_chat_compatible",
+      "endpoint_url": "https://api.deepseek.com/chat/completions",
+      "api_key": "",
+      "pool_name": "pool_semantic_demo_default_direct",
+      "model_id": "deepseek-chat",
+      "temperature": 0,
+      "max_tokens": 128,
+      "classifier_prompt": "You are a routing classifier inside an AI gateway. Choose exactly one tag from {{chat}}, {{f5}}, {{bad}}, or {{unknown}}. Return only compact JSON like {\"tag\":\"f5\",\"confidence\":0.92}.",
+      "candidate_tags": [
+        "chat",
+        "f5",
+        "bad",
+        "unknown"
+      ],
+      "fallback_tag": "unknown",
+      "bypass_enabled": false,
+      "use_built_in_rules_first": true,
+      "timeout_ms": 3000,
+      "min_confidence": 0.55,
+      "multi_label": false,
+      "hypothesis_template": "This text is about {}.",
+      "min_margin": 0.12
+    },
+    "classifier_nli_lab": {
+      "classifier_name": "classifier_nli_lab",
+      "classifier_type": "classifier_nli",
+      "schema_family": "hf_zero_shot_classification",
+      "endpoint_url": "https://nli.example.local/classify",
+      "api_key": "",
+      "pool_name": "pool_semantic_demo_default_direct",
+      "model_id": "",
+      "temperature": 0,
+      "max_tokens": 0,
+      "classifier_prompt": "",
+      "candidate_tags": [
+        "chat",
+        "f5",
+        "bad",
+        "unknown"
+      ],
+      "fallback_tag": "unknown",
+      "bypass_enabled": false,
+      "use_built_in_rules_first": true,
+      "timeout_ms": 2500,
+      "min_confidence": 0.55,
+      "multi_label": false,
+      "hypothesis_template": "This text is about {}.",
+      "min_margin": 0.12
+    }
+  },
+  "backendTargets": {
+    "backend_general": {
+      "backend_target_name": "backend_general",
+      "schema_family": "openai_chat_compatible",
+      "endpoint_url": "https://api.deepseek.com/chat/completions",
+      "api_key": "",
+      "model_id": "deepseek-chat",
+      "pool_name": "pool_semantic_demo_default_direct",
+      "backend_prompt": "You are an F5 AI gateway demo assistant. Focus on BIG-IP and closely related network topics.",
+      "backend_prompt_mode": "append",
+      "members": [
+        {
+          "name": "10.1.20.11:443",
+          "summary": "Primary node",
+          "health": "ok"
+        },
+        {
+          "name": "10.1.20.12:443",
+          "summary": "Secondary node",
+          "health": "ok"
+        },
+        {
+          "name": "10.1.20.13:443",
+          "summary": "Standby node",
+          "health": "warn"
+        }
+      ]
+    },
+    "backend_f5_expert": {
+      "backend_target_name": "backend_f5_expert",
+      "schema_family": "openai_chat_compatible",
+      "endpoint_url": "https://api.deepseek.com/chat/completions",
+      "api_key": "",
+      "model_id": "deepseek-chat",
+      "pool_name": "pool_semantic_demo_big_direct",
+      "backend_prompt": "You are an F5 BIG-IP expert. Use tmsh and operational guidance when useful.",
+      "backend_prompt_mode": "append",
+      "members": [
+        {
+          "name": "10.1.30.21:443",
+          "summary": "Expert node 1",
+          "health": "ok"
+        },
+        {
+          "name": "10.1.30.22:443",
+          "summary": "Expert node 2",
+          "health": "ok"
+        }
+      ]
+    }
+  },
+  "routingPolicies": {
+    "routing_main": {
+      "policy_type": "routing",
+      "policy_name": "routing_main",
+      "routing_mode": "key_then_classifier",
+      "classifier_ref": "classifier_main",
+      "fallback_backend_target_ref": "",
+      "default_rule": {
+        "action": "route",
+        "backend_target_ref": "backend_general",
+        "response_message": ""
+      },
+      "key_rules": [
+        {
+          "rule_name": "rd_pool_to_expert",
+          "enabled": true,
+          "match": {
+            "virtual_key_pool_ref": "vk_pool_rd",
+            "virtual_key_ref": "",
+            "virtual_key_tag": ""
+          },
+          "action": "route",
+          "backend_target_ref": "backend_f5_expert",
+          "response_message": "",
+          "classifier_ref": ""
+        }
+      ],
+      "rules": [
+        {
+          "rule_name": "chat_local_response",
+          "source_tag": "chat",
+          "action": "respond",
+          "backend_target_ref": "",
+          "response_message": "工作时间请不要闲聊",
+          "enabled": true
+        },
+        {
+          "rule_name": "bad_local_response",
+          "source_tag": "bad",
+          "action": "respond",
+          "backend_target_ref": "",
+          "response_message": "您的请求违规",
+          "enabled": true
+        },
+        {
+          "rule_name": "f5_route_expert",
+          "source_tag": "f5",
+          "action": "route",
+          "backend_target_ref": "backend_f5_expert",
+          "response_message": "",
+          "enabled": true
+        },
+        {
+          "rule_name": "unknown_route_default",
+          "source_tag": "unknown",
+          "action": "route",
+          "backend_target_ref": "backend_general",
+          "response_message": "",
+          "enabled": true
+        }
+      ]
+    },
+    "orchestrator_reserved": {
+      "policy_type": "orchestrator",
+      "policy_name": "orchestrator_reserved",
+      "routing_mode": "classifier_only",
+      "classifier_ref": "classifier_main",
+      "fallback_backend_target_ref": "",
+      "default_rule": {
+        "action": "route",
+        "backend_target_ref": "backend_general",
+        "response_message": ""
+      },
+      "key_rules": [],
+      "rules": []
+    }
+  },
+  "virtualKeyPools": {
+    "vk_pool_rd": {
+      "pool_name": "R&D Shared",
+      "description": "Example pool for R&D department virtual keys.",
+      "enabled": true
+    }
+  },
+  "virtualKeys": {
+    "kid_demo_rd": {
+      "kid": "kid_demo_rd",
+      "tag": "rd",
+      "virtual_key_pool_ref": "vk_pool_rd",
+      "description": "Example R&D virtual key.",
+      "enabled": true,
+      "secret_hash_alg": "sha256",
+      "secret_hash": "sha256:8f0f6c664d038b2d3e0e4ad4f6d6b6f81a8c512dc2f7d4e83d8a08c3d2a5b9f1",
+      "key_preview": "sk-aito-rd.kid_demo_rd.****9a2f",
+      "secret_last4": "9a2f"
+    }
+  }
+}

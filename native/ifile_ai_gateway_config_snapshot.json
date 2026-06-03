@@ -1,0 +1,281 @@
+{
+  "schema": "f5-ai-gateway.snapshot/v1",
+  "generated_at_utc": "2026-05-04T11:25:50Z",
+  "source": {
+    "canonical_file": "gateway-config.canonical.json",
+    "config_sha256": "sha256:f34eb60cac13ed7d995afec702a00e1446c1bc05e53b3051d7e241e2a13e855c"
+  },
+  "summary": {
+    "operating_mode": "gateway",
+    "active_listener_ref": "listener_8080",
+    "active_classifier_ref": "classifier_main",
+    "active_routing_policy_ref": "routing_main",
+    "listeners": [
+      "listener_8080"
+    ],
+    "classifiers": [
+      "classifier_main"
+    ],
+    "backend_targets": [
+      "backend_f5_expert",
+      "backend_general"
+    ],
+    "routing_policies": [
+      "orchestrator_reserved",
+      "routing_main"
+    ],
+    "local_rule_count": 4,
+    "active_routing_rule_count": 4
+  },
+  "native_objects": {
+    "ilx": {
+      "plugin": "/Common/llm_semantic_plugin",
+      "extension": "llm_semantic_ext",
+      "service_name": "f5-ai-gateway"
+    },
+    "data_groups": {
+      "listener_settings": "/Common/dg_ai_gateway_listener_settings",
+      "listener_refs": "/Common/dg_ai_gateway_listener_refs"
+    },
+    "local_files": {
+      "classifiers": "native/ifile_ai_gateway_classifiers.json",
+      "backend_targets": "native/ifile_ai_gateway_backend_targets.json",
+      "routing_policies": "native/ifile_ai_gateway_routing_policies.json",
+      "config_snapshot": "native/ifile_ai_gateway_config_snapshot.json"
+    },
+    "ifiles": {
+      "classifiers": "/Common/ifile_ai_gateway_classifiers",
+      "backend_targets": "/Common/ifile_ai_gateway_backend_targets",
+      "routing_policies": "/Common/ifile_ai_gateway_routing_policies",
+      "config_snapshot": "/Common/ifile_ai_gateway_config_snapshot"
+    }
+  },
+  "config": {
+    "metadata": {
+      "schema": "f5-ai-gateway.canonical/v1",
+      "description": "Human-readable source-of-intent JSON. Runtime truth lives in BIG-IP native objects.",
+      "published_snapshot_ifile": "/Common/ifile_ai_gateway_config_snapshot"
+    },
+    "operatingMode": "gateway",
+    "runtime": {
+      "listener_ref": "listener_8080"
+    },
+    "nativeObjects": {
+      "ilx": {
+        "plugin": "/Common/llm_semantic_plugin",
+        "extension": "llm_semantic_ext",
+        "service_name": "f5-ai-gateway"
+      },
+      "data_groups": {
+        "listener_settings": "/Common/dg_ai_gateway_listener_settings",
+        "listener_refs": "/Common/dg_ai_gateway_listener_refs"
+      },
+      "local_files": {
+        "classifiers": "native/ifile_ai_gateway_classifiers.json",
+        "backend_targets": "native/ifile_ai_gateway_backend_targets.json",
+        "routing_policies": "native/ifile_ai_gateway_routing_policies.json",
+        "config_snapshot": "native/ifile_ai_gateway_config_snapshot.json"
+      },
+      "ifiles": {
+        "classifiers": "/Common/ifile_ai_gateway_classifiers",
+        "backend_targets": "/Common/ifile_ai_gateway_backend_targets",
+        "routing_policies": "/Common/ifile_ai_gateway_routing_policies",
+        "config_snapshot": "/Common/ifile_ai_gateway_config_snapshot"
+      }
+    },
+    "listeners": {
+      "listener_8080": {
+        "listener_name": "listener_8080",
+        "virtual_service": "vs_llm_semantic_demo_8080",
+        "vip": "10.1.10.12",
+        "port": 8080,
+        "streaming": true,
+        "client_auth_type": "none",
+        "classifier_ref": "classifier_main",
+        "policy_ref": "routing_main",
+        "runtime_paths": {
+          "root_paths": [
+            "/",
+            "/v1"
+          ],
+          "model_paths": [
+            "/v1/models",
+            "/models",
+            "/model/list"
+          ],
+          "chat_paths": [
+            "/v1/chat/completions",
+            "/chat/completions"
+          ],
+          "responses_paths": [
+            "/v1/responses",
+            "/responses"
+          ]
+        },
+        "advanced": {
+          "max_payload_bytes": 65535,
+          "decision_timeout_ms": 3200,
+          "request_id_mode": "auto"
+        },
+        "status": {
+          "northbound_api_mode": "OpenAI-compatible",
+          "supported_paths": [
+            "/",
+            "/v1",
+            "/v1/models",
+            "/models",
+            "/model/list",
+            "/v1/chat/completions",
+            "/chat/completions",
+            "/v1/responses",
+            "/responses"
+          ],
+          "chat_completions_support": "full",
+          "responses_support": "partial",
+          "assigned_irule": "llm_semantic_route_phase2",
+          "status": "active"
+        }
+      }
+    },
+    "classifiers": {
+      "classifier_main": {
+        "classifier_name": "classifier_main",
+        "classifier_type": "classifier_llm",
+        "schema_family": "openai_chat_compatible",
+        "endpoint_url": "https://api.deepseek.com/chat/completions",
+        "api_key_env": "SEMANTIC_ROUTER_API_KEY",
+        "pool_name": "pool_semantic_demo_default_direct",
+        "model_id": "deepseek-chat",
+        "temperature": 0,
+        "max_tokens": 32,
+        "classifier_prompt": "You are a routing classifier inside an AI gateway. Classify the user input into exactly one tag from: chat, f5, bad, unknown. Return only compact JSON like {\"tag\":\"f5\",\"confidence\":0.92}. Use bad for violence, sexual content, or abusive/harmful requests. Use f5 for BIG-IP, iRule, LTM, pool, node, monitor, virtual server, ASM, APM, WAF, DNS, GTM, or other F5 questions. Use chat for casual conversation. Use unknown when unsure.",
+        "candidate_tags": [
+          "chat",
+          "f5",
+          "bad",
+          "unknown"
+        ],
+        "fallback_tag": "unknown",
+        "use_built_in_rules_first": true,
+        "timeout_ms": 3000
+      }
+    },
+    "backendTargets": {
+      "backend_general": {
+        "backend_target_name": "backend_general",
+        "schema_family": "openai_chat_compatible",
+        "endpoint_url": "https://api.deepseek.com/chat/completions",
+        "api_key_env": "DEEPSEEK_API_KEY",
+        "model_id": "deepseek-chat",
+        "pool_name": "pool_semantic_demo_default_direct",
+        "legacy_profile_name": "general_assistant",
+        "backend_prompt": "You are an F5 AI gateway demo assistant. Your primary scope is F5 BIG-IP, iRules, LTM, pool, virtual server, monitor, DNS, ASM, APM, GTM, and closely related network or infrastructure topics. When the user asks what you can do, explain that you mainly support F5-related technical questions and gateway demo scenarios. If the request is outside F5, answer briefly and steer the conversation back to F5 or enterprise infrastructure topics. Answer in Chinese unless the user explicitly asks for another language.",
+        "backend_prompt_mode": "append",
+        "advanced": {
+          "server_ssl_profile": "/Common/serverssl_deepseek_direct",
+          "sni_server_name": "api.deepseek.com",
+          "monitor": "/Common/https"
+        }
+      },
+      "backend_f5_expert": {
+        "backend_target_name": "backend_f5_expert",
+        "schema_family": "openai_chat_compatible",
+        "endpoint_url": "https://api.deepseek.com/chat/completions",
+        "api_key_env": "DEEPSEEK_API_KEY",
+        "model_id": "deepseek-chat",
+        "pool_name": "pool_semantic_demo_big_direct",
+        "legacy_profile_name": "f5_expert",
+        "backend_prompt": "You are an F5 BIG-IP expert. Answer F5 questions accurately with concrete tmsh, iRules, virtual server, pool, node, monitor, and operational guidance when useful. Answer in Chinese unless the user explicitly asks for another language.",
+        "backend_prompt_mode": "append",
+        "advanced": {
+          "server_ssl_profile": "/Common/serverssl_deepseek_direct",
+          "sni_server_name": "api.deepseek.com",
+          "monitor": "/Common/https"
+        }
+      }
+    },
+    "routingPolicies": {
+      "routing_main": {
+        "policy_type": "routing",
+        "policy_name": "routing_main",
+        "routing_mode": "classifier_only",
+        "classifier_ref": "classifier_main",
+        "key_rules": [],
+        "default_rule": {
+          "action": "route",
+          "backend_target_ref": "backend_general"
+        },
+        "rules": [
+          {
+            "rule_name": "chat_local_response",
+            "source_tag": "chat",
+            "action": "respond",
+            "response_message": "工作时间请不要闲聊",
+            "enabled": true
+          },
+          {
+            "rule_name": "bad_local_response",
+            "source_tag": "bad",
+            "action": "respond",
+            "response_message": "您的请求违规",
+            "enabled": true
+          },
+          {
+            "rule_name": "f5_route_expert",
+            "source_tag": "f5",
+            "action": "route",
+            "backend_target_ref": "backend_f5_expert",
+            "enabled": true
+          },
+          {
+            "rule_name": "unknown_route_default",
+            "source_tag": "unknown",
+            "action": "route",
+            "backend_target_ref": "backend_general",
+            "enabled": true
+          }
+        ]
+      },
+      "orchestrator_reserved": {
+        "policy_type": "orchestrator",
+        "policy_name": "orchestrator_reserved",
+        "routing_mode": "classifier_only",
+        "classifier_ref": "classifier_main",
+        "fallback_backend_target_ref": "",
+        "default_rule": {
+          "action": "route",
+          "backend_target_ref": "backend_general",
+          "response_message": ""
+        },
+        "rules": []
+      }
+    },
+    "localRules": [
+      {
+        "name": "bad_keywords",
+        "pattern": "(杀人|自杀|炸弹|恐怖袭击|强奸|qj|porn|sex|nude|hentai|成人视频|色情|裸聊|约炮|fuck you|操你|靠你|去死|教我方法)",
+        "tag": "bad",
+        "confidence": 0.99
+      },
+      {
+        "name": "f5_keywords",
+        "pattern": "(f5|big-ip|bigip|ltm|gtm|dns|asm|apm|afm|irule|i-rule|virtual server|pool|pool member|node|monitor|wide ip|snat|fastl4|oneconnect|tmsh|as3|do declaration|icontrol|hostname|ssl profile|persistence|health monitor)",
+        "tag": "f5",
+        "confidence": 0.96
+      },
+      {
+        "name": "capability_questions",
+        "pattern": "(what can you do|what do you support|what work do you support|你可以做什么|你能做什么|你会什么|你可以帮我做什么|你支持什么|你支持哪些|你支持什么功能|你支持什么工作|你能帮我什么)",
+        "tag": "unknown",
+        "confidence": 0.88,
+        "terminal": true
+      },
+      {
+        "name": "casual_chat",
+        "pattern": "(hello|hi|hey|你好|在吗|闲聊|聊聊|哈哈|谢谢|thanks|靠$|卧槽)",
+        "tag": "chat",
+        "confidence": 0.82
+      }
+    ]
+  }
+}

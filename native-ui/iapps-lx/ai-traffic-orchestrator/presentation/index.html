@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Traffic Orchestrator</title>
+  <script>
+    (function () {
+      var storageKey = 'ai-traffic-orchestrator-native-ui-page-v2';
+      var validPages = {
+        listener: true,
+        classifier: true,
+        backend: true,
+        policy: true,
+        'model-credential': true,
+        'virtual-key': true
+      };
+      var initialPage = window.location.hash.replace(/^#/, '');
+
+      try {
+        if (!validPages[initialPage]) {
+          initialPage = window.localStorage.getItem(storageKey) || '';
+        }
+      } catch (error) {
+        initialPage = '';
+      }
+
+      if (!validPages[initialPage]) {
+        initialPage = 'classifier';
+      }
+
+      document.documentElement.classList.add('is-bootstrapping');
+      document.documentElement.setAttribute('data-initial-page', initialPage);
+    }());
+  </script>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-lockup">
+        <h1>AI Traffic Orchestrator</h1>
+      </div>
+      <div class="topbar-alert" id="topbarAlert" role="alert" aria-live="assertive" hidden></div>
+      <div class="topbar-actions">
+        <div class="status-pill">
+          <span class="status-dot"></span>
+          <span id="runtimeSummary">ConfigStatus</span>
+        </div>
+        <button class="secondary-button" id="exportButton" type="button">Export Draft</button>
+        <button class="secondary-button" id="resetButton" type="button">Reset Draft</button>
+        <button class="primary-button" id="deployButton" type="button">Deploy Changes</button>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <aside class="sidebar">
+        <nav class="nav-list" aria-label="Main">
+          <button class="nav-item is-active" data-page="classifier" type="button">
+            <span class="nav-kicker">01</span>
+            <span>Classifier Setting</span>
+          </button>
+          <button class="nav-item" data-page="backend" type="button">
+            <span class="nav-kicker">02</span>
+            <span>Backend Target Setting</span>
+          </button>
+          <button class="nav-item" data-page="policy" type="button">
+            <span class="nav-kicker">03</span>
+            <span>Routing Policy Setting</span>
+          </button>
+          <button class="nav-item" data-page="listener" type="button">
+            <span class="nav-kicker">04</span>
+            <span>Northbound Listener</span>
+          </button>
+          <div class="nav-divider"></div>
+          <button class="nav-item" data-page="virtual-key" type="button">
+            <span class="nav-kicker">05</span>
+            <span>Virtual Key</span>
+          </button>
+          <button class="nav-item" data-page="model-credential" type="button">
+            <span class="nav-kicker">06</span>
+            <span>Model Credential</span>
+          </button>
+        </nav>
+      </aside>
+
+      <main class="content">
+        <section class="loading-shell" id="bootLoadingShell" aria-live="polite" aria-label="Loading deployed configuration">
+          <div class="loading-shell__panel">
+            <p class="eyebrow">Initializing</p>
+            <h2>Loading deployed configuration...</h2>
+            <p class="page-intro">Preparing the current AI Traffic Orchestrator draft and runtime summary.</p>
+            <div class="loading-shell__header">
+              <span class="loading-shell__line loading-shell__line--title"></span>
+              <span class="loading-shell__line loading-shell__line--action"></span>
+            </div>
+            <div class="loading-shell__grid">
+              <div class="loading-shell__card">
+                <span class="loading-shell__line loading-shell__line--heading"></span>
+                <span class="loading-shell__line"></span>
+                <span class="loading-shell__line loading-shell__line--short"></span>
+                <span class="loading-shell__block"></span>
+              </div>
+              <div class="loading-shell__card">
+                <span class="loading-shell__line loading-shell__line--heading"></span>
+                <span class="loading-shell__line"></span>
+                <span class="loading-shell__line"></span>
+                <span class="loading-shell__line loading-shell__line--short"></span>
+              </div>
+              <div class="loading-shell__card loading-shell__card--side">
+                <span class="loading-shell__line loading-shell__line--heading"></span>
+                <span class="loading-shell__line loading-shell__line--short"></span>
+                <span class="loading-shell__line"></span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" id="page-listener">
+          <div class="page-header">
+            <div>
+              <h2>Northbound Listener</h2>
+              <p class="page-intro">Manage the virtual service entry point, This UI owns listener definitions. Manual BIG-IP TMUI virtual server edits are not reflected here.</p>
+            </div>
+            <button class="secondary-button" id="createListenerButton" type="button">Create Virtual Service</button>
+          </div>
+
+          <div class="page-grid page-grid--listener" id="listenerLayout">
+            <section class="card list-card list-card--listener">
+              <div class="card-header">
+                <div>
+                  <h3>Virtual Server List</h3>
+                </div>
+              </div>
+              <div class="virtual-key-toolbar virtual-key-toolbar--listener">
+                <label class="virtual-key-search-field" for="listenerSearchInput">
+                  <span class="sr-only">Search Virtual Servers</span>
+                  <input id="listenerSearchInput" type="search" placeholder="Search listeners by name, destination, port, or policy">
+                </label>
+              </div>
+              <div class="table-shell table-shell--listener">
+                <table class="listener-table virtual-key-table virtual-key-table--listeners">
+                  <thead>
+                    <tr>
+                      <th class="virtual-key-checkbox-col" aria-label="Select page">
+                        <input id="listenerSelectAll" type="checkbox" aria-label="Select all visible Virtual Servers on this page">
+                      </th>
+                      <th>Status</th>
+                      <th>Name</th>
+                      <th>Destination</th>
+                      <th>Service Port</th>
+                      <th>Policy</th>
+                      <th aria-label="Actions"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="listenerList"></tbody>
+                </table>
+              </div>
+              <div class="virtual-key-table-footer">
+                <div class="virtual-key-bulk-actions">
+                  <button class="ghost-button virtual-key-bulk-button" id="enableListenersButton" type="button">Enable</button>
+                  <button class="ghost-button virtual-key-bulk-button" id="disableListenersButton" type="button">Disable</button>
+                  <button class="ghost-button ghost-button--danger virtual-key-bulk-button" id="deleteListenersButton" type="button">Delete</button>
+                </div>
+                <div class="virtual-key-pagination" id="listenerPagination">
+                  <label class="sr-only" for="listenerPageSelect">Listener pages</label>
+                  <select class="virtual-key-page-select" id="listenerPageSelect" aria-label="Listener pages"></select>
+                </div>
+              </div>
+            </section>
+
+            <section class="card editor-card" id="listenerEditorCard" hidden>
+              <div class="empty-editor" id="listenerEmptyState">
+                <p class="eyebrow">No Listener Selected</p>
+                <h3>Select a listener from the list or create a new virtual service.</h3>
+                <p class="page-intro">Configuration stays hidden until you explicitly choose a listener context.</p>
+              </div>
+
+              <div id="listenerEditorPanel" hidden>
+                <div class="card-header">
+                  <div>
+                    <p class="eyebrow">Editable Fields</p>
+                    <h3 id="listenerEditorTitle">Listener Configuration</h3>
+                  </div>
+                  <div class="editor-action-group">
+                    <button class="primary-button editor-confirm-button" id="listenerConfirmButton" type="button" hidden>Commit</button>
+                  </div>
+                </div>
+                <form class="form-grid" id="listenerForm">
+                  <label class="field field--wide">
+                    <span>Operating Mode</span>
+                    <select id="listener_operating_mode">
+                      <option value="gateway">Gateway Mode</option>
+                      <option value="transparent" disabled>Transparent Mode (Coming later)</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span>Virtual Service <em class="field-required" aria-label="required">*</em></span>
+                    <input id="listener_virtual_service" type="text">
+                  </label>
+                  <label class="field">
+                    <span>VIP <em class="field-required" aria-label="required">*</em></span>
+                    <input id="listener_vip" type="text">
+                  </label>
+                  <label class="field">
+                    <span>Port <em class="field-required" aria-label="required">*</em></span>
+                    <input id="listener_port" type="number">
+                  </label>
+                  <label class="field">
+                    <span>Assigned Policy <em class="field-required" aria-label="required">*</em></span>
+                    <select id="listener_policy_ref"></select>
+                  </label>
+                  <label class="field field--toggle">
+                    <span>Streaming</span>
+                    <button class="toggle" data-toggle="listener_streaming" type="button" aria-pressed="false">
+                      <span></span>
+                    </button>
+                  </label>
+                  <label class="field">
+                    <span>Client Authentication</span>
+                    <select id="listener_client_auth">
+                      <option value="none">None</option>
+                      <option value="virtual_key">Virtual Key</option>
+                      <option value="mtls">mTLS (Reserved)</option>
+                      <option value="oidc/jwt">OIDC/JWT (Reserved)</option>
+                    </select>
+                  </label>
+                  <div class="field field--wide">
+                    <span>Allowed Virtual Key Pools</span>
+                    <div class="dual-list-selector" id="listenerAllowedPoolsSelector">
+                      <div class="dual-list-selector__pane">
+                        <label class="dual-list-selector__label" for="listener_allowed_virtual_key_pools_selected">Selected</label>
+                        <input class="dual-list-selector__search" id="listener_allowed_virtual_key_pools_selected_filter" type="search" placeholder="Filter selected pools">
+                        <select class="dual-list-selector__list" id="listener_allowed_virtual_key_pools_selected" multiple size="8"></select>
+                      </div>
+                      <div class="dual-list-selector__actions" aria-label="Move pools between selected and available lists">
+                        <button class="secondary-button dual-list-selector__move" id="listenerAllowedPoolsAddButton" type="button" aria-label="Add selected available pools">&lt;&lt;</button>
+                        <button class="secondary-button dual-list-selector__move" id="listenerAllowedPoolsRemoveButton" type="button" aria-label="Remove selected pools">&gt;&gt;</button>
+                      </div>
+                      <div class="dual-list-selector__pane">
+                        <label class="dual-list-selector__label" for="listener_allowed_virtual_key_pools_available">Available</label>
+                        <input class="dual-list-selector__search" id="listener_allowed_virtual_key_pools_available_filter" type="search" placeholder="Filter available pools">
+                        <select class="dual-list-selector__list" id="listener_allowed_virtual_key_pools_available" multiple size="8"></select>
+                      </div>
+                    </div>
+                  </div>
+                </form>
+
+                <details class="accordion" id="listenerAdvanced">
+                  <summary>Advanced</summary>
+                  <div class="form-grid form-grid--compact">
+                    <label class="field">
+                      <span>Max Payload Bytes</span>
+                      <input id="listener_payload" type="number">
+                    </label>
+                    <label class="field">
+                      <span>Decision Timeout (ms)</span>
+                      <input id="listener_timeout" type="number">
+                    </label>
+                    <label class="field field--wide">
+                      <span>Request ID Mode</span>
+                      <select id="listener_request_id_mode">
+                        <option value="auto">Generate if missing</option>
+                        <option value="passthrough">Passthrough only</option>
+                        <option value="overwrite">Overwrite all</option>
+                      </select>
+                    </label>
+                  </div>
+                </details>
+              </div>
+            </section>
+
+            <section class="card status-card">
+              <div class="card-header">
+                <div>
+                  <p class="eyebrow">Read Only</p>
+                  <h3 id="listenerStatusTitle">Status</h3>
+                </div>
+              </div>
+              <div class="empty-editor empty-editor--compact" id="listenerStatusEmpty" hidden></div>
+              <dl class="stat-list" id="listenerStatus" hidden></dl>
+              <div class="status-subcard" id="listenerPathsCard" hidden>
+                <h4>Supported APIs</h4>
+                <div class="pill-list" id="listenerPaths"></div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="page is-active" id="page-classifier">
+          <div class="page-header">
+            <div>
+              <h2>Classifier Setting</h2>
+              <p class="page-intro">Configure the model that assigns traffic tags before policy execution.</p>
+            </div>
+            <div class="header-actions">
+              <button class="secondary-button" id="createClassifierButton" type="button">Add New Classifier</button>
+            </div>
+          </div>
+
+          <div class="page-grid page-grid--classifier">
+            <section class="card list-card list-card--classifier">
+              <div class="card-header">
+                <div>
+                  <h3><span class="backend-status-heading">Classifiers <span class="help-icon table-help-icon" data-tooltip="Green: config and runtime OK. Yellow: not deployed, runtime OK. Red: runtime health failed.&#10;Bypass: After Deploy Changes, Policies will not use Classifier and send prompt to Default Rule." tabindex="0" aria-label="Green: config and runtime OK. Yellow: not deployed, runtime OK. Red: runtime health failed. Bypass: After Deploy Changes, Policies will not use Classifier and send prompt to Default Rule.">?</span></span></h3>
+                </div>
+              </div>
+              <div class="list-column" id="classifierList"></div>
+            </section>
+
+            <section class="card editor-card editor-card--classifier">
+              <div class="card-header">
+                <div>
+                  <h3 id="classifierEditorTitle">Classifier Definition</h3>
+                </div>
+                <div class="editor-action-group">
+                  <button class="primary-button editor-confirm-button" id="classifierConfirmButton" type="button" hidden>Commit</button>
+                </div>
+              </div>
+              <form class="form-grid form-grid--classifier" id="classifierForm" autocomplete="off">
+                <label class="field">
+                  <span>Classifier Name <em class="field-required" aria-label="required">*</em></span>
+                  <input id="classifier_name" type="text" autocomplete="off">
+                </label>
+                <label class="field">
+                  <span>Classifier Type <em class="field-required" aria-label="required">*</em></span>
+                  <select id="classifier_type">
+                    <option value="classifier_llm">Classifier LLM</option>
+                    <option value="classifier_nli">Classifier NLI</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>Schema Family <em class="field-required" aria-label="required">*</em></span>
+                  <select id="classifier_schema"></select>
+                </label>
+                <label class="field field--wide">
+                  <span>Endpoint URL <em class="field-required" aria-label="required">*</em></span>
+                  <div class="endpoint-probe-field">
+                    <input id="classifier_endpoint" type="text" autocomplete="off">
+                    <button class="probe-button probe-button--idle" id="classifierProbeButton" type="button" title="Probe classifier model" aria-label="Probe classifier model">!</button>
+                  </div>
+                </label>
+                <label class="field field--wide field--pool-reference">
+                  <span>Referenced BIG-IP Pool <em class="field-required" aria-label="required">*</em></span>
+                  <div class="select-action-field">
+                    <select id="classifier_pool"></select>
+                    <button class="icon-action-button" id="refreshClassifierPoolCatalogButton" type="button" title="Refresh BIG-IP pool list" aria-label="Refresh BIG-IP pool list">&#8635;</button>
+                    <a class="icon-action-button" href="/tmui/Control/jspmap/tmui/locallb/pool/list.jsp" target="_blank" rel="noopener" title="Open Local Traffic > Pools" aria-label="Open Local Traffic > Pools">&#9881;</a>
+                  </div>
+                  <small class="field-help" id="classifierPoolStatus"></small>
+                </label>
+                <label class="field">
+                  <span>API Key <em class="field-required" aria-label="required">*</em></span>
+                  <div class="secret-field">
+                    <input id="classifier_api_key" type="password" autocomplete="new-password" placeholder="Paste API key">
+                    <button class="secret-toggle" type="button" data-secret-toggle="classifier_api_key" aria-label="Show classifier API key">Show</button>
+                  </div>
+                </label>
+                <label class="field llm-only">
+                  <span>Model ID <em class="field-required" aria-label="required">*</em></span>
+                  <input id="classifier_model" type="text" autocomplete="off">
+                </label>
+                <div class="classifier-tuning-row field--wide">
+                  <label class="field llm-only">
+                    <span>Temperature</span>
+                    <input id="classifier_temperature" type="number" step="0.01">
+                  </label>
+                  <label class="field llm-only">
+                    <span>Max Tokens</span>
+                    <input id="classifier_max_tokens" type="number">
+                  </label>
+                  <label class="field classifier-field--timeout">
+                    <span>Timeout (ms)</span>
+                    <input id="classifier_timeout" type="number">
+                  </label>
+                </div>
+                <label class="field field--wide llm-only">
+                  <span>Classifier Prompt <em class="field-required" aria-label="required">*</em></span>
+                  <textarea id="classifier_prompt" rows="6"></textarea>
+                </label>
+                <label class="field field--wide">
+                  <span id="classifierTagsLabel">Candidate Tags <em class="field-required" aria-label="required">*</em></span>
+                  <input id="classifier_tags" type="text">
+                  <div class="tag-chip-list" id="classifierTagPreview"></div>
+                  <small class="field-help" id="classifierTagsHelp"></small>
+                </label>
+                <div class="classifier-control-row field--wide">
+                  <label class="field classifier-field--fallback">
+                    <span>Fallback Tag</span>
+                    <select id="classifier_fallback"></select>
+                  </label>
+                  <label class="field field--toggle classifier-bypass-field">
+                    <span>Bypass Classifier <span class="help-icon" data-tooltip="After Deploy Changes, policies will not use Classifier and send prompt to Default Rule." tabindex="0" aria-label="After Deploy Changes, policies will not use Classifier and send prompt to Default Rule.">?</span></span>
+                    <button class="toggle toggle--danger" data-toggle="classifier_bypass" type="button" aria-pressed="false">
+                      <span></span>
+                    </button>
+                  </label>
+                </div>
+                <label class="field nli-only">
+                  <span>Min Confidence</span>
+                  <input id="classifier_min_confidence" type="number" step="0.01">
+                </label>
+                <label class="field nli-only field--toggle">
+                  <span>Multi Label</span>
+                  <button class="toggle" data-toggle="classifier_multi_label" type="button" aria-pressed="false">
+                    <span></span>
+                  </button>
+                </label>
+                <label class="field field--wide nli-only">
+                  <span>Hypothesis Template <em class="field-required" aria-label="required">*</em></span>
+                  <input id="classifier_hypothesis" type="text">
+                </label>
+                <label class="field nli-only">
+                  <span>Min Margin</span>
+                  <input id="classifier_min_margin" type="number" step="0.01">
+                </label>
+              </form>
+              <div class="classifier-test-panel">
+                <label class="field field--wide">
+                  <span>Test Input</span>
+                  <textarea id="classifier_test_input" rows="3" placeholder="Enter a sample user prompt to test this draft classifier before Deploy Changes."></textarea>
+                </label>
+                <div class="classifier-test-actions">
+                  <button class="secondary-button" id="testClassifierButton" type="button">Test Classifier</button>
+                </div>
+                <div class="classifier-test-result" id="classifierTestResult" hidden></div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="page" id="page-backend">
+          <div class="page-header">
+            <div>
+              <h2>Backend Target Setting</h2>
+              <p class="page-intro">Manage a single capability target and its shared network/application behavior across pool members.</p>
+            </div>
+            <button class="secondary-button" id="createBackendButton" type="button">Add Backend Target</button>
+          </div>
+
+          <div class="page-grid page-grid--backend" id="backendLayout">
+            <section class="card list-card list-card--backend">
+              <div class="card-header">
+                <div>
+                  <h3>Backend Targets</h3>
+                </div>
+              </div>
+              <div class="virtual-key-toolbar backend-table-toolbar">
+                <label class="virtual-key-search-field" for="backendSearchInput">
+                  <span class="sr-only">Search backend targets</span>
+                  <input id="backendSearchInput" type="search" placeholder="Search backend targets by name, pool, endpoint, model, or schema">
+                </label>
+              </div>
+              <div class="table-shell table-shell--backend">
+                <table class="listener-table backend-table virtual-key-table virtual-key-table--backend">
+                  <thead>
+                    <tr>
+                      <th class="backend-checkbox-col"><input id="backendSelectAll" type="checkbox" aria-label="Select all Backend Targets"></th>
+                      <th><span class="backend-status-heading">Status <span class="help-icon table-help-icon" data-tooltip="Green: config and runtime OK. Yellow: not deployed, runtime OK. Red: runtime health failed." tabindex="0" aria-label="Green: config and runtime OK. Yellow: not deployed, runtime OK. Red: runtime health failed.">?</span></span></th>
+                      <th>Target Name</th>
+                      <th>Referenced Pool</th>
+                      <th>Model ID</th>
+                      <th aria-label="Configure"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="backendList"></tbody>
+                </table>
+              </div>
+              <div class="virtual-key-table-footer backend-table-footer">
+                <div class="virtual-key-bulk-actions">
+                  <button class="ghost-button ghost-button--danger virtual-key-bulk-button" id="deleteSelectedBackendsButton" type="button">Delete</button>
+                </div>
+                <div class="virtual-key-pagination">
+                  <label class="sr-only" for="backendPageSelect">Backend target page</label>
+                  <select class="virtual-key-page-select" id="backendPageSelect" aria-label="Backend target page"></select>
+                </div>
+              </div>
+            </section>
+
+            <section class="card editor-card" id="backendEditorCard" hidden>
+              <div class="empty-editor" id="backendEmptyState">
+                <p class="eyebrow">No Backend Target Selected</p>
+                <h3>Select a backend target from the list or add a new target.</h3>
+                <p class="page-intro">Configuration stays hidden until you explicitly choose a backend target context.</p>
+              </div>
+
+              <div id="backendEditorPanel" hidden>
+                <div class="card-header">
+                  <div>
+                    <p class="eyebrow">Editable Fields</p>
+                    <h3 id="backendEditorTitle">Backend Target</h3>
+                  </div>
+                  <div class="editor-action-group">
+                    <button class="primary-button editor-confirm-button" id="backendConfirmButton" type="button" hidden>Commit</button>
+                  </div>
+                </div>
+                <form class="form-grid" id="backendForm" autocomplete="off">
+                  <label class="field">
+                    <span>Backend Name <em class="field-required" aria-label="required">*</em></span>
+                    <input id="backend_name" type="text">
+                  </label>
+                  <label class="field">
+                    <span>Schema Family</span>
+                    <select id="backend_schema"></select>
+                  </label>
+                  <label class="field field--wide">
+                    <span>Endpoint URL <em class="field-required" aria-label="required">*</em></span>
+                    <div class="endpoint-probe-field">
+                      <input id="backend_endpoint" type="text">
+                      <button class="probe-button probe-button--idle" id="backendProbeButton" type="button" title="Probe backend model" aria-label="Probe backend model">!</button>
+                    </div>
+                  </label>
+                  <div class="field field--wide field--choice-group" id="backendCredentialSourceField">
+                    <span>Credential Source</span>
+                    <div class="choice-group" id="backendCredentialSourceGroup" role="radiogroup" aria-label="Backend credential source">
+                      <label class="choice-chip">
+                        <input id="backend_credential_source_inline" name="backend_credential_source" type="radio" value="inline_api_key">
+                        <span>Inline API Key (Legacy)</span>
+                      </label>
+                      <label class="choice-chip">
+                        <input id="backend_credential_source_pool" name="backend_credential_source" type="radio" value="credential_pool">
+                        <span>Model Key Pool (Recommended)</span>
+                      </label>
+                    </div>
+                  </div>
+                  <label class="field" id="backendInlineApiKeyField">
+                    <span>API Key <em class="field-required" aria-label="required">*</em></span>
+                    <div class="secret-field secret-field--with-copy">
+                      <input id="backend_api_key" type="password" autocomplete="off" placeholder="Paste API key">
+                      <button class="secret-toggle" type="button" data-secret-toggle="backend_api_key" aria-label="Show backend API key">Show</button>
+                      <button class="icon-action-button icon-action-button--copy" id="backendApiKeyCopyButton" type="button" title="Copy backend API key" aria-label="Copy backend API key"></button>
+                    </div>
+                  </label>
+                  <label class="field" id="backendCredentialPoolField" hidden>
+                    <span>Credential Pool <em class="field-required" aria-label="required">*</em></span>
+                    <select id="backend_credential_pool_ref"></select>
+                  </label>
+                  <label class="field">
+                    <span>Model ID <em class="field-required" aria-label="required">*</em></span>
+                    <input id="backend_model" type="text">
+                  </label>
+                  <label class="field field--wide field--pool-reference">
+                    <span>Referenced BIG-IP Pool <em class="field-required" aria-label="required">*</em></span>
+                    <div class="select-action-field">
+                      <select id="backend_pool"></select>
+                      <button class="icon-action-button" id="refreshPoolCatalogButton" type="button" title="Refresh BIG-IP pool list" aria-label="Refresh BIG-IP pool list">&#8635;</button>
+                      <a class="icon-action-button" href="/tmui/Control/jspmap/tmui/locallb/pool/list.jsp" target="_blank" rel="noopener" title="Open Local Traffic > Pools" aria-label="Open Local Traffic Pools">&#9881;</a>
+                    </div>
+                  </label>
+                  <label class="field field--wide">
+                    <span>Backend Prompt <em class="field-optional">Optional</em></span>
+                    <textarea id="backend_prompt" rows="6"></textarea>
+                  </label>
+                  <label class="field">
+                    <span>Backend Prompt Mode</span>
+                    <select id="backend_prompt_mode">
+                      <option value="append">Append</option>
+                      <option value="rewrite">Rewrite</option>
+                    </select>
+                  </label>
+                </form>
+
+              </div>
+            </section>
+
+            <section class="card status-card">
+              <div class="card-header status-card-header">
+                <div>
+                  <p class="eyebrow">Read Only</p>
+                  <h3 id="backendStatusTitle">Status</h3>
+                </div>
+                <button class="status-refresh-button" id="refreshBackendStatusButton" type="button" aria-label="Refresh backend live status" title="Refresh backend live status">
+                  <span aria-hidden="true">&#8635;</span>
+                </button>
+              </div>
+              <div class="empty-editor empty-editor--compact" id="backendStatusEmpty" hidden></div>
+              <dl class="stat-list" id="backendStatus" hidden></dl>
+              <div class="status-subcard" id="backendMembersCard" hidden>
+                <h4>Pool Members</h4>
+                <div class="member-health" id="backendMembers"></div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="page" id="page-policy">
+          <div class="page-header">
+            <div>
+              <h2>Routing Policy Setting</h2>
+              <p class="page-intro">Map a traffic tag to a route or local response. Orchestrator stays visible as reserved scope.</p>
+            </div>
+            <div class="header-actions">
+              <button class="secondary-button" id="createPolicyButton" type="button">New Policy</button>
+            </div>
+          </div>
+
+          <div class="page-grid page-grid--backend" id="policyLayout">
+            <section class="card list-card list-card--policy">
+              <div class="card-header">
+                <div>
+                  <p class="eyebrow">Policies</p>
+                  <h3>Routing Policies</h3>
+                </div>
+              </div>
+              <div class="virtual-key-toolbar virtual-key-toolbar--policy">
+                <label class="virtual-key-search-field" for="policySearchInput">
+                  <span class="sr-only">Search Routing Policies</span>
+                  <input id="policySearchInput" type="search" placeholder="Search policies by id, name, type, classifier, entries, or default rule">
+                </label>
+              </div>
+              <div class="table-shell table-shell--backend">
+                <table class="listener-table policy-table virtual-key-table virtual-key-table--policy">
+                  <thead>
+                    <tr>
+                      <th class="virtual-key-checkbox-col" aria-label="Select page">
+                        <input id="policySelectAll" type="checkbox" aria-label="Select all visible Routing Policies on this page">
+                      </th>
+                      <th>Policy Type</th>
+                      <th>Policy Name</th>
+                      <th>Classifier</th>
+                      <th>Entries</th>
+                      <th>Default Rule</th>
+                      <th aria-label="Configure"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="policyList"></tbody>
+                </table>
+              </div>
+              <div class="virtual-key-table-footer">
+                <div class="virtual-key-bulk-actions">
+                  <button class="ghost-button ghost-button--danger virtual-key-bulk-button" id="deleteSelectedPoliciesButton" type="button">Delete</button>
+                </div>
+                <div class="virtual-key-pagination">
+                  <label class="sr-only" for="policyPageSelect">Routing policy pages</label>
+                  <select class="virtual-key-page-select" id="policyPageSelect" aria-label="Routing policy pages"></select>
+                </div>
+              </div>
+            </section>
+
+            <section class="card editor-card" id="policyEditorCard" hidden>
+              <div class="empty-editor" id="policyEmptyState">
+                <p class="eyebrow">No Policy Selected</p>
+                <h3>Select a policy from the list or add a new policy.</h3>
+                <p class="page-intro">Configuration stays hidden until you explicitly choose a policy context.</p>
+              </div>
+
+              <div id="policyEditorPanel" hidden>
+                <div class="card-header">
+                  <div>
+                    <p class="eyebrow">Editable Fields</p>
+                    <h3 id="policyEditorTitle">Routing Policy</h3>
+                  </div>
+                  <div class="editor-action-group">
+                    <button class="primary-button editor-confirm-button" id="policyConfirmButton" type="button" hidden>Commit</button>
+                  </div>
+                </div>
+                <form class="form-grid" id="policyForm">
+                  <label class="field">
+                    <span>Policy Type <em class="field-required" aria-label="required">*</em></span>
+                    <select id="policy_type">
+                      <option value="routing">Routing Policy</option>
+                      <option value="orchestrator">Orchestrator (Reserved)</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span>Policy Name <em class="field-required" aria-label="required">*</em></span>
+                    <input id="policy_name" type="text">
+                  </label>
+                  <label class="field">
+                    <span>Routing Mode <em class="field-required" aria-label="required">*</em></span>
+                    <select id="policy_routing_mode"></select>
+                  </label>
+                  <label class="field" id="policyClassifierField">
+                    <span>Classifier <em class="field-required" aria-label="required">*</em></span>
+                    <select id="policy_classifier_ref"></select>
+                  </label>
+                </form>
+
+                <div class="subpanel" id="policyKeyStagePanel" hidden>
+                  <div class="subpanel-header subpanel-header--actions">
+                    <div>
+                      <p class="eyebrow">Key Stage</p>
+                      <h4 id="policyKeyStageTitle">Virtual Key Rules</h4>
+                    </div>
+                    <button class="ghost-button" id="addPolicyKeyEntryButton" type="button">Add Rule</button>
+                  </div>
+                  <div class="entry-list" id="policyKeyEntries"></div>
+                </div>
+
+                <div class="subpanel" id="policyTagStagePanel">
+                  <div class="subpanel-header subpanel-header--actions">
+                    <div>
+                      <p class="eyebrow">Classifier Stage</p>
+                      <h4 id="policyTagStageTitle">Tag Rules</h4>
+                    </div>
+                    <button class="ghost-button" id="addPolicyEntryButton" type="button">Add Entry</button>
+                  </div>
+                  <div class="entry-list" id="policyEntries"></div>
+                </div>
+
+                <div class="subpanel" id="policyDefaultRulePanel">
+                  <div class="subpanel-header">
+                    <p class="eyebrow" id="policyDefaultRuleEyebrow">No Tag Match</p>
+                    <h4 id="policyDefaultRuleTitle">Default Rule</h4>
+                  </div>
+                  <div class="form-grid form-grid--compact">
+                    <label class="field">
+                      <span id="policyDefaultBackendLabel">Unmatched Tag Backend Target <em class="field-required" aria-label="required">*</em></span>
+                      <select id="policy_default_backend_target"></select>
+                    </label>
+                    <label class="field field--wide">
+                      <span id="policyDefaultResponseLabel">Unmatched Tag Local Response <em class="field-required" aria-label="required">*</em></span>
+                      <input id="policy_default_response_message" type="text">
+                    </label>
+                    <label class="field">
+                      <span>Fallback Backend Target <em class="field-optional">Optional</em></span>
+                      <select id="policy_fallback_backend_target"></select>
+                    </label>
+                  </div>
+                </div>
+
+              </div>
+            </section>
+
+            <section class="card status-card">
+              <div class="card-header">
+                <div>
+                  <p class="eyebrow">Read Only</p>
+                  <h3 id="policyStatusTitle">Status</h3>
+                </div>
+              </div>
+              <div class="empty-editor" id="policyStatusEmpty" hidden></div>
+              <dl class="stat-list" id="policyStatus" hidden></dl>
+            </section>
+          </div>
+        </section>
+
+        <section class="page" id="page-virtual-key">
+          <div class="page-header">
+            <div>
+              <h2>Virtual Key</h2>
+              <p class="page-intro">Manage northbound virtual key pools and virtual keys for listener authentication.</p>
+            </div>
+          </div>
+
+          <div class="page-stack">
+            <div class="virtual-key-layout" id="virtualKeyLayout">
+              <section class="card virtual-key-pane virtual-key-pane--pool" id="virtualKeyPoolPane">
+                <div class="card-header virtual-key-pane-header">
+                  <div>
+                    <h3>Virtual Key Pools</h3>
+                    <p class="status-helper">Disabled pools invalidate the keys assigned to them.</p>
+                  </div>
+                  <div class="header-actions">
+                    <button class="secondary-button" id="createVirtualKeyPoolButton" type="button">Add Pool</button>
+                  </div>
+                </div>
+
+                <section class="subpanel virtual-key-editor" id="virtualKeyPoolEditor" hidden>
+                  <div class="subpanel-header subpanel-header--actions">
+                    <div>
+                      <p class="eyebrow">Staged Configuration</p>
+                      <h4 id="virtualKeyPoolEditorTitle">Add Virtual Key Pool</h4>
+                    </div>
+                    <div class="editor-action-group editor-action-group--virtual-key">
+                      <label class="field field--toggle-check virtual-key-editor__toggle" for="virtualKeyPool_enabled">
+                        <span>Enabled</span>
+                        <input id="virtualKeyPool_enabled" type="checkbox" checked>
+                      </label>
+                      <button class="ghost-button" id="cancelVirtualKeyPoolButton" type="button">Cancel</button>
+                      <button class="primary-button editor-confirm-button" id="virtualKeyPoolConfirmButton" type="button" hidden>Commit</button>
+                    </div>
+                  </div>
+                  <form class="form-grid form-grid--compact" id="virtualKeyPoolForm">
+                    <label class="field">
+                      <span>Pool Name <em class="field-required" aria-label="required">*</em></span>
+                      <input id="virtualKeyPool_pool_name" type="text" maxlength="64" placeholder="Example: North America Pool">
+                    </label>
+                    <label class="field">
+                      <span>Pool ID</span>
+                      <input id="virtualKeyPool_object_id" type="text" readonly>
+                    </label>
+                    <label class="field field--wide">
+                      <span>Description <em class="field-optional">Optional</em></span>
+                      <input id="virtualKeyPool_description" type="text" maxlength="160">
+                    </label>
+                  </form>
+                  <p class="status-helper" id="virtualKeyPoolValidationHint">Pool Name: 1-64 chars, letters, numbers, spaces, underscore, hyphen, and dot.</p>
+                </section>
+
+                <div class="virtual-key-toolbar">
+                  <label class="virtual-key-search-field" for="virtualKeyPoolSearchInput">
+                    <span class="sr-only">Search Virtual Key Pools</span>
+                    <input id="virtualKeyPoolSearchInput" type="search" placeholder="Search pools by name, ID, or description">
+                  </label>
+                </div>
+
+                <div class="table-shell table-shell--listener">
+                  <table class="listener-table virtual-key-table virtual-key-table--pools">
+                    <colgroup>
+                      <col class="virtual-key-pool-col virtual-key-pool-col--select">
+                      <col class="virtual-key-pool-col virtual-key-pool-col--status">
+                      <col class="virtual-key-pool-col virtual-key-pool-col--name">
+                      <col class="virtual-key-pool-col virtual-key-pool-col--description">
+                      <col class="virtual-key-pool-col virtual-key-pool-col--actions">
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th class="virtual-key-checkbox-col" aria-label="Select all pools">
+                          <input id="virtualKeyPoolSelectAll" type="checkbox" aria-label="Select all visible Virtual Key Pools">
+                        </th>
+                        <th>Status</th>
+                        <th>Pool Name</th>
+                        <th>Description</th>
+                        <th aria-label="Actions"></th>
+                      </tr>
+                    </thead>
+                    <tbody id="virtualKeyPoolList"></tbody>
+                  </table>
+                </div>
+                <div class="virtual-key-table-footer">
+                  <div class="virtual-key-bulk-actions">
+                    <button class="ghost-button virtual-key-bulk-button" id="showVirtualKeyPoolsButton" type="button">Show Keys</button>
+                    <button class="ghost-button virtual-key-bulk-button" id="enableVirtualKeyPoolsButton" type="button">Enable</button>
+                    <button class="ghost-button virtual-key-bulk-button" id="disableVirtualKeyPoolsButton" type="button">Disable</button>
+                    <button class="ghost-button ghost-button--danger virtual-key-bulk-button" id="deleteVirtualKeyPoolsButton" type="button">Delete</button>
+                  </div>
+                  <div class="virtual-key-pagination" id="virtualKeyPoolPagination">
+                    <label class="sr-only" for="virtualKeyPoolPageSelect">Virtual Key Pool pages</label>
+                    <select class="virtual-key-page-select" id="virtualKeyPoolPageSelect" aria-label="Virtual Key Pool pages"></select>
+                  </div>
+                </div>
+              </section>
+
+              <div class="virtual-key-divider" id="virtualKeyDivider" role="separator" aria-orientation="vertical" aria-label="Resize Virtual Key panes" tabindex="0"></div>
+
+              <section class="card virtual-key-pane virtual-key-pane--key" id="virtualKeyPane">
+                <div class="card-header virtual-key-pane-header">
+                  <div>
+                    <h3>Virtual Keys</h3>
+                    <p class="status-helper">The API key is only visible and can be copied at creation. Save it securely. Do not share your API key with others</p>
+                  </div>
+                  <div class="header-actions">
+                    <button class="secondary-button" id="createVirtualKeyButton" type="button">Add Key</button>
+                  </div>
+                </div>
+
+                <section class="subpanel virtual-key-editor" id="virtualKeyEditor" hidden>
+                  <div class="subpanel-header subpanel-header--actions">
+                    <div>
+                      <p class="eyebrow">Staged Configuration</p>
+                      <h4 id="virtualKeyEditorTitle">Add Virtual Key</h4>
+                    </div>
+                    <div class="editor-action-group editor-action-group--virtual-key">
+                      <label class="field field--toggle-check virtual-key-editor__toggle" for="virtualKey_enabled">
+                        <span>Enabled</span>
+                        <input id="virtualKey_enabled" type="checkbox" checked>
+                      </label>
+                      <button class="ghost-button" id="cancelVirtualKeyButton" type="button">Cancel</button>
+                      <button class="primary-button editor-confirm-button" id="virtualKeyConfirmButton" type="button">Commit</button>
+                    </div>
+                  </div>
+                  <form class="form-grid form-grid--compact" id="virtualKeyForm">
+                    <label class="field">
+                      <span>Key ID</span>
+                      <input id="virtualKey_kid" type="text" readonly>
+                    </label>
+                    <label class="field">
+                      <span>Tag <em class="field-required" aria-label="required">*</em></span>
+                      <input id="virtualKey_tag" type="text" maxlength="32" placeholder="RD">
+                    </label>
+                    <label class="field">
+                      <span>Created</span>
+                      <input id="virtualKey_created_at" type="text" readonly>
+                    </label>
+                    <label class="field">
+                      <span>Last Used</span>
+                      <input id="virtualKey_last_used_at" type="text" readonly>
+                    </label>
+                    <label class="field field--wide">
+                      <span>Pool Name <em class="field-required" aria-label="required">*</em></span>
+                      <select id="virtualKey_pool_ref"></select>
+                    </label>
+                    <label class="field field--wide">
+                      <span>Key Detail</span>
+                      <div class="virtual-key-detail-field">
+                        <input id="virtualKey_detail" type="text" readonly>
+                        <button class="icon-action-button icon-action-button--eye-off" id="virtualKeyDetailRevealButton" type="button" title="Reveal full key" aria-label="Reveal full key"></button>
+                        <button class="icon-action-button icon-action-button--copy" id="virtualKeyDetailCopyButton" type="button" title="Copy full key" aria-label="Copy full key"></button>
+                      </div>
+                    </label>
+                  </form>
+                  <p class="status-helper" id="virtualKeyValidationHint">Tag must use English letters, numbers, underscore, or hyphen only. Examples: RD, HQ, US.</p>
+                </section>
+
+                <div class="virtual-key-toolbar">
+                  <label class="virtual-key-search-field" for="virtualKeySearchInput">
+                    <span class="sr-only">Search Virtual Keys</span>
+                    <input id="virtualKeySearchInput" type="search" placeholder="Search keys by ID, tag, pool, or preview">
+                  </label>
+                </div>
+
+                <div class="table-shell table-shell--listener">
+                  <table class="listener-table virtual-key-table virtual-key-table--keys">
+                    <thead>
+                      <tr>
+                        <th class="virtual-key-checkbox-col" aria-label="Select page">
+                          <input id="virtualKeySelectAll" type="checkbox" aria-label="Select all visible Virtual Keys on this page">
+                        </th>
+                        <th>Status</th>
+                        <th>Key ID</th>
+                        <th>Pool / Tag</th>
+                        <th>Key Detail</th>
+                        <th>Created</th>
+                        <th>Last Used</th>
+                        <th aria-label="Actions"></th>
+                      </tr>
+                    </thead>
+                    <tbody id="virtualKeyList"></tbody>
+                  </table>
+                </div>
+                <div class="virtual-key-table-footer">
+                  <div class="virtual-key-bulk-actions">
+                    <button class="ghost-button virtual-key-bulk-button" id="enableVirtualKeysButton" type="button">Enable</button>
+                    <button class="ghost-button virtual-key-bulk-button" id="disableVirtualKeysButton" type="button">Disable</button>
+                    <button class="ghost-button ghost-button--danger virtual-key-bulk-button" id="deleteVirtualKeysButton" type="button">Delete</button>
+                  </div>
+                  <div class="virtual-key-pagination" id="virtualKeyPagination">
+                    <label class="sr-only" for="virtualKeyPageSelect">Virtual Key pages</label>
+                    <select class="virtual-key-page-select" id="virtualKeyPageSelect" aria-label="Virtual Key pages"></select>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" id="page-model-credential">
+          <div class="page-header">
+            <div>
+              <h2>Model Credential</h2>
+              <p class="page-intro">Manage southbound provider credential pools used by backend targets.</p>
+            </div>
+          </div>
+
+          <div class="page-stack">
+            <div class="virtual-key-layout" id="modelCredentialLayout">
+              <section class="card virtual-key-pane virtual-key-pane--pool" id="modelCredentialPoolPane">
+                <div class="card-header virtual-key-pane-header">
+                  <div>
+                    <h3>Credential Pools</h3>
+                    <p class="status-helper">Select a pool to manage its southbound credentials.</p>
+                  </div>
+                  <div class="header-actions">
+                    <button class="secondary-button" id="createModelCredentialPoolButton" type="button">Add Pool</button>
+                  </div>
+                </div>
+
+                <section class="subpanel virtual-key-editor" id="modelCredentialPoolEditor" hidden>
+                  <div class="subpanel-header subpanel-header--actions">
+                    <div>
+                      <p class="eyebrow">Staged Configuration</p>
+                      <h4 id="modelCredentialPoolEditorTitle">Add Credential Pool</h4>
+                    </div>
+                    <div class="editor-action-group editor-action-group--virtual-key">
+                      <label class="field field--toggle-check virtual-key-editor__toggle" for="modelCredentialPool_enabled">
+                        <span>Enabled</span>
+                        <input id="modelCredentialPool_enabled" type="checkbox" checked>
+                      </label>
+                      <button class="ghost-button" id="cancelModelCredentialPoolButton" type="button">Cancel</button>
+                      <button class="primary-button editor-confirm-button" id="modelCredentialPoolConfirmButton" type="button" hidden>Commit</button>
+                    </div>
+                  </div>
+                  <form class="form-grid form-grid--compact" id="modelCredentialPoolForm">
+                    <label class="field">
+                      <span>Pool Name <em class="field-required" aria-label="required">*</em></span>
+                      <input id="modelCredentialPool_pool_name" type="text" maxlength="64" placeholder="Example: OpenAI Production Keys">
+                    </label>
+                    <label class="field">
+                      <span>Pool ID</span>
+                      <input id="modelCredentialPool_object_id" type="text" readonly>
+                    </label>
+                    <label class="field">
+                      <span>Vendor <em class="field-required" aria-label="required">*</em></span>
+                      <input id="modelCredentialPool_vendor" type="text" maxlength="64" placeholder="Example: openai">
+                    </label>
+                    <label class="field">
+                      <span>Selection Mode <span class="help-icon" data-tooltip="V1 supports Priority Failover only. Lower-priority values are tried first, and later requests move to the next credential when the current one is cooling down." tabindex="0" aria-label="V1 supports Priority Failover only. Lower-priority values are tried first, and later requests move to the next credential when the current one is cooling down.">?</span></span>
+                      <select id="modelCredentialPool_selection_mode">
+                        <option value="priority_failover">Priority Failover</option>
+                      </select>
+                    </label>
+                    <label class="field">
+                      <span>Cooldown Seconds <span class="help-icon" data-tooltip="Default cooldown used after southbound 429 responses when the provider does not return Retry-After. 401 and 403 use a longer auth-failure cooldown in runtime." tabindex="0" aria-label="Default cooldown used after southbound 429 responses when the provider does not return Retry-After. 401 and 403 use a longer auth-failure cooldown in runtime.">?</span></span>
+                      <input id="modelCredentialPool_cooldown_seconds" type="number" min="0" step="1">
+                    </label>
+                    <label class="field field--wide">
+                      <span>Description <em class="field-optional">Optional</em></span>
+                      <input id="modelCredentialPool_description" type="text" maxlength="160">
+                    </label>
+                  </form>
+                  <p class="status-helper" id="modelCredentialPoolValidationHint">Pool Name and Vendor are required. Priority Failover is the only V1 selection mode.</p>
+                </section>
+
+                <div class="virtual-key-toolbar">
+                  <label class="virtual-key-search-field" for="modelCredentialPoolSearchInput">
+                    <span class="sr-only">Search Credential Pools</span>
+                    <input id="modelCredentialPoolSearchInput" type="search" placeholder="Search pools by name, ID, vendor, or description">
+                  </label>
+                </div>
+
+                <div class="table-shell table-shell--listener">
+                  <table class="listener-table virtual-key-table virtual-key-table--model-credential-pools">
+                    <thead>
+                      <tr>
+                        <th class="virtual-key-checkbox-col" aria-label="Select all pools">
+                          <input id="modelCredentialPoolSelectAll" type="checkbox" aria-label="Select all visible Credential Pools">
+                        </th>
+                        <th>Status</th>
+                        <th>Pool Name</th>
+                        <th>Vendor</th>
+                        <th aria-label="Actions"></th>
+                      </tr>
+                    </thead>
+                    <tbody id="modelCredentialPoolList"></tbody>
+                  </table>
+                </div>
+                <div class="virtual-key-table-footer">
+                  <div class="virtual-key-bulk-actions">
+                    <button class="ghost-button virtual-key-bulk-button" id="showModelCredentialPoolsButton" type="button">Show Keys</button>
+                    <button class="ghost-button virtual-key-bulk-button" id="enableModelCredentialPoolsButton" type="button">Enable</button>
+                    <button class="ghost-button virtual-key-bulk-button" id="disableModelCredentialPoolsButton" type="button">Disable</button>
+                    <button class="ghost-button ghost-button--danger virtual-key-bulk-button" id="deleteModelCredentialPoolsButton" type="button">Delete</button>
+                  </div>
+                  <div class="virtual-key-pagination" id="modelCredentialPoolPagination">
+                    <label class="sr-only" for="modelCredentialPoolPageSelect">Credential Pool pages</label>
+                    <select class="virtual-key-page-select" id="modelCredentialPoolPageSelect" aria-label="Credential Pool pages"></select>
+                  </div>
+                </div>
+              </section>
+
+              <div class="virtual-key-divider" id="modelCredentialDivider" role="separator" aria-orientation="vertical" aria-label="Resize Model Credential panes" tabindex="0"></div>
+
+              <section class="card virtual-key-pane virtual-key-pane--key" id="modelCredentialPane">
+                <div class="card-header virtual-key-pane-header">
+                  <div>
+                    <h3>Credentials</h3>
+                    <p class="status-helper">Vendor is inherited from the selected pool. Configure a pool before adding credentials.</p>
+                  </div>
+                  <div class="header-actions">
+                    <button class="secondary-button" id="createModelCredentialButton" type="button">Add Credential</button>
+                  </div>
+                </div>
+
+                <section class="subpanel virtual-key-editor" id="modelCredentialEditor" hidden>
+                  <div class="subpanel-header subpanel-header--actions">
+                    <div>
+                      <p class="eyebrow">Staged Configuration</p>
+                      <h4 id="modelCredentialEditorTitle">Add Credential</h4>
+                    </div>
+                    <div class="editor-action-group editor-action-group--virtual-key">
+                      <label class="field field--toggle-check virtual-key-editor__toggle" for="modelCredential_enabled">
+                        <span>Enabled</span>
+                        <input id="modelCredential_enabled" type="checkbox" checked>
+                      </label>
+                      <button class="ghost-button" id="cancelModelCredentialButton" type="button">Cancel</button>
+                      <button class="primary-button editor-confirm-button" id="modelCredentialConfirmButton" type="button">Commit</button>
+                    </div>
+                  </div>
+                  <form class="form-grid form-grid--compact" id="modelCredentialForm" autocomplete="off">
+                    <label class="field">
+                      <span>Display Name <em class="field-required" aria-label="required">*</em></span>
+                      <input id="modelCredential_display_name" type="text" maxlength="96" placeholder="Example: OpenAI Prod A">
+                    </label>
+                    <label class="field">
+                      <span>Credential ID</span>
+                      <input id="modelCredential_credential_id" type="text" maxlength="96" readonly>
+                    </label>
+                    <label class="field">
+                      <span>Priority <span class="help-icon" data-tooltip="Lower numbers are tried first. V1 uses Priority Failover only." tabindex="0" aria-label="Lower numbers are tried first. V1 uses Priority Failover only.">?</span></span>
+                      <input id="modelCredential_priority" type="number" min="0" step="1">
+                    </label>
+                    <label class="field">
+                      <span>Vendor</span>
+                      <input id="modelCredential_vendor" type="text" readonly>
+                    </label>
+                    <label class="field field--wide">
+                      <span>API Key <em class="field-required" aria-label="required">*</em></span>
+                      <div class="secret-field secret-field--with-copy">
+                        <input id="modelCredential_api_key" type="password" autocomplete="off" placeholder="Paste provider API key">
+                        <button class="icon-action-button icon-action-button--eye-off" type="button" data-secret-toggle="modelCredential_api_key" title="Show credential API key" aria-label="Show credential API key"></button>
+                        <button class="icon-action-button icon-action-button--copy" id="modelCredentialApiKeyCopyButton" type="button" title="Copy credential API key" aria-label="Copy credential API key"></button>
+                      </div>
+                    </label>
+                  </form>
+                  <p class="status-helper" id="modelCredentialValidationHint">Display Name, Priority, and API Key are required. Credential ID is generated from Display Name and remains stable for runtime tracking.</p>
+                </section>
+
+                <div class="virtual-key-toolbar">
+                  <label class="virtual-key-search-field" for="modelCredentialSearchInput">
+                    <span class="sr-only">Search Credentials</span>
+                    <input id="modelCredentialSearchInput" type="search" placeholder="Search credentials by name, ID, vendor, state, or key preview">
+                  </label>
+                </div>
+
+                <div class="table-shell table-shell--listener">
+                  <table class="listener-table virtual-key-table virtual-key-table--model-credentials">
+                    <thead>
+                      <tr>
+                        <th class="virtual-key-checkbox-col" aria-label="Select page">
+                          <input id="modelCredentialSelectAll" type="checkbox" aria-label="Select all visible Credentials on this page">
+                        </th>
+                        <th>Status</th>
+                        <th>Name</th>
+                        <th>Credential ID</th>
+                        <th>Priority</th>
+                        <th>Key Preview</th>
+                        <th>Runtime State</th>
+                        <th>Last Failure</th>
+                        <th aria-label="Actions"></th>
+                      </tr>
+                    </thead>
+                    <tbody id="modelCredentialList"></tbody>
+                  </table>
+                </div>
+                <div class="virtual-key-table-footer">
+                  <div class="virtual-key-bulk-actions">
+                    <button class="ghost-button virtual-key-bulk-button" id="enableModelCredentialsButton" type="button">Enable</button>
+                    <button class="ghost-button virtual-key-bulk-button" id="disableModelCredentialsButton" type="button">Disable</button>
+                    <button class="ghost-button ghost-button--danger virtual-key-bulk-button" id="deleteModelCredentialsButton" type="button">Delete</button>
+                  </div>
+                  <div class="virtual-key-pagination" id="modelCredentialPagination">
+                    <label class="sr-only" for="modelCredentialPageSelect">Credential pages</label>
+                    <select class="virtual-key-page-select" id="modelCredentialPageSelect" aria-label="Credential pages"></select>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="./app.js"></script>
+</body>
+</html>

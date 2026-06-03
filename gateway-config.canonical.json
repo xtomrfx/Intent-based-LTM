@@ -1,4 +1,9 @@
 {
+  "metadata": {
+    "schema": "f5-ai-gateway.canonical/v1",
+    "description": "Human-readable source-of-intent JSON. Runtime truth lives in BIG-IP native objects.",
+    "published_snapshot_ifile": "/Common/ifile_ai_gateway_config_snapshot"
+  },
   "operatingMode": "gateway",
   "runtime": {
     "listener_ref": "listener_8080"
@@ -32,7 +37,6 @@
       "virtual_service": "vs_llm_semantic_demo_8080",
       "vip": "10.1.10.12",
       "port": 8080,
-      "default_public_model": "gateway-demo",
       "streaming": true,
       "client_auth_type": "none",
       "classifier_ref": "classifier_main",
@@ -144,7 +148,6 @@
       "policy_name": "routing_main",
       "routing_mode": "classifier_only",
       "classifier_ref": "classifier_main",
-      "fallback_backend_target_ref": "",
       "key_rules": [],
       "default_rule": {
         "action": "route",
