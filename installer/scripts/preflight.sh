@@ -54,6 +54,7 @@ main() {
   check_payload payload/ilx/classifier-config.json.seed
   check_payload payload/ilx/native/ifile_ai_gateway_classifiers.json
   check_payload payload/ilx/native/ifile_ai_gateway_backend_targets.json
+  check_payload payload/ilx/native/ifile_ai_gateway_provider_credential_pools.json
   check_payload payload/ilx/native/ifile_ai_gateway_routing_policies.json
   check_payload payload/ilx/native/ifile_ai_gateway_config_snapshot.json
   check_payload payload/config/empty-deployed-config.json

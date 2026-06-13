@@ -1,6 +1,6 @@
 {
   "name": "AITrafficOrchestrator",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "AI Traffic Orchestrator native iApps LX UI scaffold",
   "main": "nodejs/index.js"
 }

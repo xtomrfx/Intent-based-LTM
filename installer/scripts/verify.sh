@@ -87,6 +87,7 @@ main() {
   check_file "${ILX_EXTENSION_DIR}/classifier-config.json"
   check_file "${ILX_NATIVE_DIR}/ifile_ai_gateway_classifiers.json"
   check_file "${ILX_NATIVE_DIR}/ifile_ai_gateway_backend_targets.json"
+  check_file "${ILX_NATIVE_DIR}/ifile_ai_gateway_provider_credential_pools.json"
   check_file "${ILX_NATIVE_DIR}/ifile_ai_gateway_routing_policies.json"
   check_file "${ILX_NATIVE_DIR}/ifile_ai_gateway_config_snapshot.json"
   check_file "${DEPLOYED_CONFIG_FILE}"

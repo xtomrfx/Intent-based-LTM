@@ -52,6 +52,7 @@ delete_aito_ifiles() {
   for object_name in \
     /Common/ifile_ai_gateway_classifiers \
     /Common/ifile_ai_gateway_backend_targets \
+    /Common/ifile_ai_gateway_provider_credential_pools \
     /Common/ifile_ai_gateway_routing_policies \
     /Common/ifile_ai_gateway_config_snapshot; do
     delete_tmsh_object_if_exists "sys file ifile" "${object_name}" "iFile"

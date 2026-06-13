@@ -1,117 +1,237 @@
-# F5 LTM Semantic Routing Demo
+# AI Traffic Orchestrator
 
-This repository now tracks the current `8080` path only.
+AI Traffic Orchestrator is a native BIG-IP AI Gateway control plane. It installs on a single BIG-IP device, exposes a TMUI-hosted iApps LX user interface, and applies gateway configuration to BIG-IP native objects plus an iRules LX runtime.
 
-The active runtime is:
+The current product scope is `Gateway` mode:
 
 ```text
-vs_llm_semantic_demo_8080
-  -> iRule llm_semantic_route_phase2
-  -> ILX plugin llm_semantic_plugin / llm_semantic_ext
-  -> TMM local respond or southbound route
+Client
+  -> BIG-IP Virtual Server
+  -> iRule / TMM request handling
+  -> iRules LX decision worker
+  -> Local Response or Routed Model Backend
 ```
 
-The older `8081` / `llm_ai_gw_*` ILX-managed path has been removed from this repo and should no longer be treated as current.
+`Transparent Mode` is reserved and is not part of the current installation or configuration scope.
 
-## Active Runtime Components
+## Product Features
 
-- Virtual server: `vs_llm_semantic_demo_8080`
-- Active iRule: `llm_semantic_route_phase2`
-- Rollback iRule still present: `llm_semantic_route`
-- ILX plugin: `llm_semantic_plugin`
-- ILX extension entrypoint in this repo: `index.js`
-- ILX config example: `classifier-config.json.example`
-- Demo client/backend helpers: `semantic_client.py`, `semantic_backend.py`
+- Native BIG-IP UI under `iApps > Application Services > Applications LX`.
+- OpenAI-compatible northbound traffic, primarily `POST /v1/chat/completions`.
+- Classifier-driven semantic tags such as `f5`, `general`, `blocked`, and `unknown`.
+- Routing policies that return a local response or route to a model backend.
+- Northbound Virtual Keys for application or tenant authentication and policy matching.
+- Southbound Model Credential pools for model API key priority failover.
+- BYO BIG-IP LTM pools. AITO references pools but does not own pool members, monitors, or load-balancing method.
+- Offline installation and cleanup with on-box scripts. No external control-plane service is required.
 
-## Current Behavior
+## Offline Install On A Clean BIG-IP
 
-- BIG-IP accepts OpenAI-like northbound requests on `8080`
-- ILX extracts prompt text and returns a lightweight decision
-- TMM performs local `respond` behavior for policy-driven replies
-- TMM rewrites and forwards routed requests to the selected backend pool
-- Linux only hosts demo helpers and the demo chatbot
-- Runtime config still supports `targetModels + promptProfiles + decisions`, but the preferred local authoring model is now `listeners + classifiers + backendTargets + routingPolicies`, with the older shape treated as compatibility input
-- The ILX runtime now loads `classifier-config.json` as the base config, then overlays `native/ifile_ai_gateway_{classifiers,backend_targets,routing_policies}.json` when those published files exist
-- Listener-level northbound path families are now configuration-driven through `dg_ai_gateway_listener_settings`, including:
-  - `root_paths`
-  - `model_paths`
-  - `chat_paths`
-  - `responses_paths`
-- Listener-level capability status is also configuration-driven through `dg_ai_gateway_listener_settings`, including:
-  - `northbound_api_mode`
-  - `chat_completions_support`
-  - `responses_support`
-- `GET /` now returns the listener's configured northbound capability summary instead of a fully hardcoded status body
-- Gateway-mode hardening now includes canonical config validation before render/publish, plus richer ILX `health` diagnostics for active refs, registry counts, and native overlay file state
-- The publisher now treats device backups as best-effort and uses per-SSH timeouts plus post-publish object verification, so UDF SSH noise does not change runtime behavior
-- The publish toolchain now also emits:
-  - `publish-backups/latest/publish-diff.json`
-  - `publish-backups/latest/publish-manifest.json`
-  - `publish-backups/latest/rollback-plan.json`
-- `publish-manifest.json` now records input file checksums, desired state summary, remote state summary, and verification status
+### Requirements
 
-## Config Layers
+- BIG-IP with iApps LX and iRules LX available.
+- Shell access as `root`, or a user that can run the installer scripts with `sudo`.
+- On-box commands available: `bash`, `tar`, `curl`, `tmsh`, `restcurl`, and `bigstart`.
+- Existing customer-owned LTM pools for model backend and classifier egress paths.
+- Working BIG-IP data-plane DNS, routing, and server-side TLS/SNI behavior for the selected model providers.
 
-- Human-readable source of intent: [gateway-config.canonical.json](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/gateway-config.canonical.json)
-- Rendered publish bundle for F5 native objects: `gateway-native-artifacts.json`
-- Published record for operators and device-side inspection: `gateway-config.snapshot.json`
-- Runtime truth: BIG-IP native objects, especially `Virtual Server`, `Data Group`, `iFile`, and the active iRule
+### Build The Offline Bundle
 
-The snapshot JSON is meant for review, diff, and debugging. It does not replace BIG-IP native objects as the runtime source of truth.
-The native artifacts JSON is meant for renderer review and publisher input. It shows exactly what will become `Data Group` records and `iFile` payloads on BIG-IP.
-
-The current supported northbound request families are documented in:
-
-- [customer-config-guide.md](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/customer-config-guide.md)
-- [northbound-southbound-support-profile.md](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/northbound-southbound-support-profile.md)
-- [f5-ai-gateway-openapi.yaml](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/f5-ai-gateway-openapi.yaml)
-- [f5-native-config-refactor-plan.md](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/f5-native-config-refactor-plan.md)
-
-## Key Files
-
-- [index.js](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/index.js)
-- [gateway-config.canonical.json](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/gateway-config.canonical.json)
-- [gateway-native-artifacts.json](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/gateway-native-artifacts.json)
-- [native/ifile_ai_gateway_classifiers.json](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/native/ifile_ai_gateway_classifiers.json)
-- [native/ifile_ai_gateway_backend_targets.json](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/native/ifile_ai_gateway_backend_targets.json)
-- [native/ifile_ai_gateway_routing_policies.json](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/native/ifile_ai_gateway_routing_policies.json)
-- [gateway_native_artifacts_lib.py](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/gateway_native_artifacts_lib.py)
-- [render_gateway_native_artifacts.py](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/render_gateway_native_artifacts.py)
-- [publish_gateway_native_artifacts.py](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/publish_gateway_native_artifacts.py)
-- [rollback_gateway_native_artifacts.py](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/rollback_gateway_native_artifacts.py)
-- [validate_gateway_canonical.py](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/validate_gateway_canonical.py)
-- [render_gateway_snapshot.py](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/render_gateway_snapshot.py)
-- [classifier-config.json.example](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/classifier-config.json.example)
-- [f5-native-config-refactor-plan.md](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/f5-native-config-refactor-plan.md)
-- [llm_semantic_route.tcl](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/llm_semantic_route.tcl)
-- [llm_semantic_rule.conf](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/llm_semantic_rule.conf)
-- [deploy-demo.tmsh](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/deploy-demo.tmsh)
-- [semantic_client.py](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/semantic_client.py)
-- [semantic_backend.py](/Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo test/ltm-semantic-routing/semantic_backend.py)
-
-## Validation
-
-Run the practical checks for the current `8080` path:
+From the repository root:
 
 ```bash
-cd /Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo\ test/ltm-semantic-routing
-node --check index.js
-python3 -m py_compile semantic_backend.py semantic_client.py
-python3 validate_gateway_canonical.py --canonical gateway-config.canonical.json
-python3 render_gateway_snapshot.py --canonical gateway-config.canonical.json --output gateway-config.snapshot.json
-python3 render_gateway_native_artifacts.py --canonical gateway-config.canonical.json --output gateway-native-artifacts.json
-python3 publish_gateway_native_artifacts.py --canonical gateway-config.canonical.json --artifacts-output gateway-native-artifacts.json --snapshot-output gateway-config.snapshot.json --diff --bigip-host <host> --bigip-port <port> --ssh-timeout-seconds 20
-python3 publish_gateway_native_artifacts.py --canonical gateway-config.canonical.json --artifacts-output gateway-native-artifacts.json --snapshot-output gateway-config.snapshot.json --ssh-timeout-seconds 20
-python3 rollback_gateway_native_artifacts.py --canonical gateway-config.canonical.json --backup-dir publish-backups/latest --show-plan
-bash -n start-demo.sh stop-demo.sh
+./installer/build_offline_bundle.sh
 ```
 
-For runtime changes, also review:
+The build creates:
 
-- `llm_semantic_route.tcl`
-- `llm_semantic_rule.conf`
-- `classifier-config.json.example`
+```text
+dist/aito-0.2.1.tgz
+dist/aito-0.2.1.tar
+dist/aito-0.2.1.tgz.sha256
+dist/aito-0.2.1.tar.sha256
+```
 
-## Historical Design Material
+`dist/` is generated output and is not committed to Git.
 
-Some design and planning documents in this repository still discuss future control-plane ideas or previously explored migration approaches. Treat them as design history, not as the current runtime implementation.
+### Upload And Install
+
+Copy the archive to BIG-IP:
+
+```bash
+scp dist/aito-0.2.1.tgz root@<bigip-management-ip>:/var/tmp/
+```
+
+Install on BIG-IP:
+
+```bash
+ssh root@<bigip-management-ip>
+cd /var/tmp
+tar xzf aito-0.2.1.tgz
+cd aito-0.2.1
+sudo ./oneclick_install.sh
+```
+
+If you are already logged in as `root`, omit `sudo`.
+
+`oneclick_install.sh` runs:
+
+```text
+preflight.sh -> install.sh -> verify.sh
+```
+
+The installer creates or updates:
+
+- iApps LX UI and worker files under `/var/config/rest/iapps/AITrafficOrchestrator`.
+- iRules LX workspace, extension, plugin, and runtime `index.js`.
+- Managed iRule `/Common/llm_semantic_route_phase2`.
+- Empty deployed-config and native runtime JSON baselines.
+- Worker loader-path registration for `/mgmt/iapps/AITrafficOrchestrator`.
+- A narrow sudo bridge used by the Deploy worker apply wrapper.
+
+The installer does not create a traffic listener by default. After installation, open the UI, configure the gateway objects, and click `Deploy Changes`.
+
+### Verify The Install
+
+The one-click installer runs verification automatically. You can rerun verification manually:
+
+```bash
+sudo ./verify.sh
+```
+
+Expected result:
+
+```text
+Summary: <n> passed, 0 failed, <n> skipped
+```
+
+The authenticated worker check is skipped unless `AITO_REST_USER` and `AITO_REST_PASSWORD` are set.
+
+### Open The UI
+
+Recommended TMUI path:
+
+```text
+iApps > Application Services > Applications LX > AITrafficOrchestrator
+```
+
+Direct worker entry:
+
+```text
+https://<bigip-management-ip>/mgmt/iapps/AITrafficOrchestrator
+```
+
+Static fallback after TMUI login:
+
+```text
+https://<bigip-management-ip>/iapps/AITrafficOrchestrator/presentation/index.html
+```
+
+### One-Click Uninstall
+
+From the extracted bundle directory:
+
+```bash
+sudo ./oneclick_uninstall.sh
+```
+
+Cleanup removes AITO-owned files and objects:
+
+- iApps LX block and worker loader path.
+- AITO iApps files and runtime directory.
+- AITO sudoers bridge.
+- ILX plugin and workspace.
+- AITO iRule and classifier egress helper objects.
+- AITO data groups, iFiles, and managed server SSL profile.
+
+It does not delete customer-owned BYO LTM pools.
+
+### Upgrade And Rollback
+
+For an existing AITO installation, extract the new bundle and run:
+
+```bash
+sudo ./upgrade.sh
+sudo ./verify.sh
+```
+
+Install and upgrade create backups under:
+
+```text
+/var/tmp/AITrafficOrchestrator-install-backups/<timestamp>
+```
+
+Immediate install or upgrade recovery:
+
+```bash
+sudo ./rollback.sh
+```
+
+Rollback is best-effort and is intended for immediate install or upgrade recovery, not long-term configuration versioning.
+
+## Usage Examples
+
+### Example 1: Route F5 Questions To A Specialist Model
+
+Create a Classifier that emits tags such as `f5`, `general`, `blocked`, and `unknown`. In Routing Policy, map `f5` to a Backend Target with an F5 expert prompt. Other tags can route to a general backend or return local responses.
+
+### Example 2: Block Disallowed Requests Locally
+
+If the Classifier returns `blocked`, configure the matching Routing Policy rule with action `Local Response`. BIG-IP returns the configured response without forwarding the prompt to a backend model.
+
+### Example 3: Assign Virtual Keys Per Application
+
+Create one Virtual Key Pool per application or tenant, then create keys inside each pool. Enable `Virtual Key` authentication on the listener. Routing policies can match by key pool, a specific key, or key tag.
+
+### Example 4: Fail Over Southbound Model API Keys
+
+Create a Model Credential Pool with multiple provider API keys and ascending priorities. A Backend Target can reference that pool. Runtime credential failures such as `401`, `403`, and `429` cool down the current key so later requests can use the next available credential.
+
+## Recommended Configuration Flow
+
+1. Create backend and classifier pools in BIG-IP `Local Traffic > Pools`.
+2. Configure `Classifier Setting`.
+3. Configure `Model Credential` if southbound API keys should be centrally managed.
+4. Configure `Backend Target Setting`.
+5. Configure `Virtual Key` if northbound authentication is required.
+6. Configure `Routing Policy Setting`.
+7. Configure `Northbound Listener`.
+8. Click `Deploy Changes`.
+
+Most editors use staged changes. `Commit` writes editor changes into the local draft. `Deploy Changes` applies the committed draft to BIG-IP. `Reset Draft` discards the browser draft and reloads the deployed device baseline.
+
+For field-level configuration details, see [customer-config-guide.md](customer-config-guide.md).
+
+## Important Boundaries
+
+- Northbound behavior is fixed OpenAI-compatible. Northbound schema customization is not exposed in the UI.
+- The current primary data-plane path is `/v1/chat/completions`.
+- Backend Target schema family is currently `openai_chat_compatible`.
+- BIG-IP Local Traffic owns pool members, monitors, and load-balancing method.
+- Runtime health, Virtual Key last-used, and Model Credential runtime state are operational data, not deployed configuration.
+- Model Credential V1 applies to Backend Targets, not Classifier Targets.
+- Southbound credential failover is next-request failover, not same-request HTTP retry.
+
+## Repository Layout
+
+- `installer/`: offline bundle builder and BIG-IP on-box install, verify, rollback, and cleanup scripts.
+- `native-ui/iapps-lx/ai-traffic-orchestrator/`: BIG-IP iApps LX UI and worker.
+- `index.js`: iRules LX runtime entrypoint.
+- `llm_semantic_route.tcl`: gateway iRule source.
+- `customer-config-guide.md`: detailed configuration manual.
+- `f5-ai-gateway-openapi.yaml`: northbound API description.
+- `native/`: native runtime JSON examples.
+
+## Local Validation
+
+Recommended checks before publishing:
+
+```bash
+node --check index.js
+node --test native-ui/tests/*.js
+python3 -m py_compile semantic_backend.py semantic_client.py
+bash -n start-demo.sh stop-demo.sh installer/build_offline_bundle.sh installer/scripts/*.sh
+./installer/build_offline_bundle.sh
+```
+
+The offline installer still needs real BIG-IP validation for full confidence because `tmsh`, `restcurl`, iApps LX, and iRules LX behavior cannot be fully exercised on a Mac.

@@ -100,6 +100,7 @@ cat > "${STAGE_DIR}/payload/config/empty-deployed-config.json" <<'EOF'
   "listeners": {},
   "classifiers": {},
   "backendTargets": {},
+  "providerCredentialPools": {},
   "routingPolicies": {},
   "virtualKeyPools": {},
   "virtualKeys": {},
@@ -136,6 +137,7 @@ const artifacts = configProcessor.buildArtifacts(configProcessor.normalizeBlock(
 const mapping = {
   classifiers: 'ifile_ai_gateway_classifiers.json',
   backend_targets: 'ifile_ai_gateway_backend_targets.json',
+  provider_credential_pools: 'ifile_ai_gateway_provider_credential_pools.json',
   routing_policies: 'ifile_ai_gateway_routing_policies.json',
   config_snapshot: 'ifile_ai_gateway_config_snapshot.json'
 };
@@ -183,9 +185,11 @@ AI Traffic Orchestrator offline installer ${APP_VERSION}
 
 Upload this directory or ${BUNDLE_NAME}.tgz to a BIG-IP device, then run:
 
-  sudo ./preflight.sh
-  sudo ./install.sh
-  sudo ./verify.sh
+  sudo ./oneclick_install.sh
+
+To remove AITO-owned objects from a lab or clean test device:
+
+  sudo ./oneclick_uninstall.sh
 
 V1 installs the AITO control plane, ILX runtime, iRule, and an empty deployed
 configuration baseline. It does not create a traffic listener by default.
@@ -199,6 +203,8 @@ write_root_wrapper "upgrade.sh"
 write_root_wrapper "rollback.sh"
 write_root_wrapper "verify.sh"
 write_root_wrapper "cleanup.sh"
+write_root_wrapper "oneclick_install.sh"
+write_root_wrapper "oneclick_uninstall.sh"
 strip_extended_attributes "${STAGE_DIR}"
 
 (
