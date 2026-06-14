@@ -4,10 +4,9 @@ This subtree owns the on-box UI work for the BIG-IP native product experience.
 
 Scope:
 
-- field contract for the MVP UI
 - iApps LX package scaffold
 - static `presentation/` assets with no internet dependency
-- processor stubs that map UI state to the current runtime/native-object contract
+- worker code that maps UI state to BIG-IP native objects and runtime artifacts
 
 Non-goals in this subtree:
 
@@ -17,25 +16,19 @@ Non-goals in this subtree:
 
 Current status:
 
-1. MVP field contract is frozen for:
-   - `Operating Mode`
-   - `Northbound Listener`
-   - `Classifier Setting`
-   - `Backend Target Setting`
-   - `Routing Policy Setting`
-2. A local static custom-GUI shell exists under the iApps LX scaffold.
-3. On-box workers now exist for:
+1. A local static custom-GUI shell exists under the iApps LX scaffold.
+2. On-box workers exist for:
    - `GET /mgmt/iapps/AITrafficOrchestrator`
    - `GET /mgmt/iapps/AITrafficOrchestrator/config`
    - `POST /mgmt/iapps/AITrafficOrchestrator/deploy`
-4. `Deploy Changes` now applies the current UI state to BIG-IP native objects using a local tmsh/bash bridge.
+3. `Deploy Changes` applies the current UI state to BIG-IP native objects using a local tmsh/bash bridge.
 
 ## Local Preview
 
 Run:
 
 ```bash
-cd /Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo\ test/ltm-semantic-routing/native-ui
+cd native-ui
 ./preview-native-ui.sh
 ```
 
@@ -60,7 +53,7 @@ The preview supports:
 Run:
 
 ```bash
-cd /Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo\ test/ltm-semantic-routing/native-ui
+cd native-ui
 ./deploy_native_ui_to_f5.sh
 ```
 

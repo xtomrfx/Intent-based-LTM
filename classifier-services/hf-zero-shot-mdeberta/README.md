@@ -42,7 +42,7 @@ Response:
 ## Deploy to current UDF Linux host
 
 ```bash
-cd /Users/k.ji/Library/CloudStorage/OneDrive-F5,Inc/books/demo\ test/ltm-semantic-routing/classifier-services/hf-zero-shot-mdeberta
+cd classifier-services/hf-zero-shot-mdeberta
 chmod +x deploy_to_udf_linux.sh
 ./deploy_to_udf_linux.sh
 ```
