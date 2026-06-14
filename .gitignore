@@ -9,3 +9,16 @@ __pycache__/
 .playwright-cli/
 dist/
 publish-backups/
+
+# Local-only agent memory and design notes. Keep these available for development,
+# but do not publish them to the public GitHub repository.
+AGENTS.md
+project_memory.md
+*memory*.md
+*codex*.md
+*subagent*.md
+*-plan.md
+*-proposal.md
+*-requirements.md
+*-contract.md
+*-profile.md
